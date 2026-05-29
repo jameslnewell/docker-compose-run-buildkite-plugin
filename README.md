@@ -71,3 +71,27 @@ Each phase is visible as a separate log group in Buildkite, allowing you to see 
 
 - [docker-run](https://github.com/jameslnewell/docker-run-buildkite-plugin) — Run a command in a Docker image with phase-level timing and automatic cleanup
 - [docker-compose-build](https://github.com/jameslnewell/docker-compose-build-buildkite-plugin) — Build and push a docker compose service using `docker buildx bake`
+
+## Testing
+
+Tests are written using [bats](https://github.com/bats-core/bats-core). The unit tests stub Docker Compose commands and require [bats-support](https://github.com/bats-core/bats-support), [bats-assert](https://github.com/bats-core/bats-assert), and [bats-mock](https://github.com/buildkite-plugins/bats-mock).
+
+Install the dependencies (macOS):
+
+```bash
+brew install bats-core bats-support bats-assert
+# bats-mock is not in Homebrew — clone it alongside the others:
+git clone https://github.com/buildkite-plugins/bats-mock "$(brew --prefix)/lib/bats-mock"
+```
+
+Run the unit tests (no Docker required):
+
+```bash
+BATS_LIB_PATH="$(brew --prefix)/lib" bats tests/command.bats tests/pre-exit.bats
+```
+
+Run the integration tests (requires Docker and Docker Compose):
+
+```bash
+bats tests/integration.bats
+```
