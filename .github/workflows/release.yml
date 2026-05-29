@@ -1,0 +1,63 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g., v1.2.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version format
+        run: |
+          if ! [[ "${{ inputs.version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version format. Use v1.2.3"
+            exit 1
+          fi
+
+      - name: Check tag doesn't already exist
+        run: |
+          if git rev-parse "${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "Tag ${{ inputs.version }} already exists"
+            exit 1
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          {
+            echo "CHANGELOG<<EOF"
+            PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [ -z "$PREV_TAG" ]; then
+              echo "Initial release"
+              git log --oneline --pretty=format:"- %s (%h)"
+            else
+              git log --oneline --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create git tag
+        run: git tag "${{ inputs.version }}"
+
+      - name: Push tag
+        run: git push origin "${{ inputs.version }}"
+
+      - name: Create GitHub release
+        run: |
+          gh release create "${{ inputs.version }}" \
+            --title "${{ inputs.version }}" \
+            --notes "${{ steps.changelog.outputs.CHANGELOG }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
