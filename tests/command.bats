@@ -1,8 +1,17 @@
 #!/usr/bin/env bats
 
 setup() {
+  load "${BATS_LIB_PATH}/bats-support/load.bash"
+  load "${BATS_LIB_PATH}/bats-assert/load.bash"
+  load "${BATS_LIB_PATH}/bats-mock/stub.bash"
+
   export PLUGIN_PATH="${BATS_TEST_DIRNAME}/.."
   export BUILDKITE_JOB_ID="test-job-id"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test-service"
+}
+
+teardown() {
+  unstub docker 2>/dev/null || true
 }
 
 @test "script has valid bash syntax" {
@@ -61,4 +70,33 @@ setup() {
 
   [[ $status -eq 0 ]]
   [[ "$output" == *"/host:/container"* ]]
+}
+
+@test "Warns when step has a command" {
+  export BUILDKITE_COMMAND="make test"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_output --partial "Warning:"
+  unset BUILDKITE_COMMAND
+}
+
+@test "No warning when step has no command" {
+  unset BUILDKITE_COMMAND
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  refute_output --partial "Warning:"
 }

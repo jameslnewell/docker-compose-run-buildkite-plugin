@@ -42,6 +42,10 @@ for v in "${VOLUMES[@]}"; do
   RUN_ARGS+=(-v "$v")
 done
 
+if [[ -n "${BUILDKITE_COMMAND:-}" ]]; then
+  echo "Warning: the step's command will not be run inside the container. Specify the command in your docker-compose.yml service definition instead."
+fi
+
 set -x
 docker compose -p "$PROJECT" "${FILE_ARGS[@]}" run \
   --no-deps \
