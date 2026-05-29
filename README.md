@@ -17,14 +17,14 @@ All resources are cleaned up automatically, even on failure.
 
 ## Configuration
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `file` | string or array | Docker compose file(s) to use. Defaults to `docker-compose.yml` |
-| `service` | string | **Required.** Service to run |
-| `workdir` | string | Override working directory in the container |
-| `entrypoint` | string | Override container entrypoint |
-| `env` | array | Environment variables as `KEY=VALUE` |
-| `volume` | array | Volume mounts as `host:container` |
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `file` | string or array | — | Docker compose file(s) to use. Defaults to `docker-compose.yml` |
+| `service` | string | ✓ | Service to run |
+| `workdir` | string | — | Override working directory in the container |
+| `entrypoint` | string | — | Override container entrypoint |
+| `env` | array | — | Environment variables as `KEY=VALUE` |
+| `volume` | array | — | Volume mounts as `host:container` |
 
 ## Usage
 
@@ -66,3 +66,8 @@ steps:
 4. **Cleanup Phase** — Always runs `docker compose down --volumes --remove-orphans` and collects logs as artifacts
 
 Each phase is visible as a separate log group in Buildkite, allowing you to see where time is being spent.
+
+## Other plugins that may be useful
+
+- [docker-run](https://github.com/jameslnewell/docker-run-buildkite-plugin) — Run a command in a Docker image with phase-level timing and automatic cleanup
+- [docker-compose-build](https://github.com/jameslnewell/docker-compose-build-buildkite-plugin) — Build and push a docker compose service using `docker buildx bake`
