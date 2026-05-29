@@ -1,8 +1,6 @@
 #!/usr/bin/env bats
 
 setup() {
-  load /usr/lib/bats-support/load.bash || load /opt/bats/lib/bats-support/load.bash
-  load /usr/lib/bats-assert/load.bash || load /opt/bats/lib/bats-assert/load.bash
   export PLUGIN_PATH="${BATS_TEST_DIRNAME}/.."
   export BUILDKITE_JOB_ID="test-job-id"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test-service"
@@ -18,10 +16,10 @@ setup() {
 
   run "$PLUGIN_PATH/hooks/command"
 
-  assert_success
-  assert_output --partial "pull called"
-  assert_output --partial "up called"
-  assert_output --partial "run called"
+  [[ $status -eq 0 ]]
+  [[ "$output" == *"pull called"* ]]
+  [[ "$output" == *"up called"* ]]
+  [[ "$output" == *"run called"* ]]
 
   unstub docker
 }
@@ -36,7 +34,8 @@ setup() {
 
   run "$PLUGIN_PATH/hooks/command"
 
-  assert_success
+  [[ $status -eq 0 ]]
+
   unstub docker
 }
 
@@ -51,7 +50,8 @@ setup() {
 
   run "$PLUGIN_PATH/hooks/command"
 
-  assert_success
+  [[ $status -eq 0 ]]
+
   unstub docker
 }
 
@@ -67,7 +67,8 @@ setup() {
 
   run "$PLUGIN_PATH/hooks/command"
 
-  assert_success
+  [[ $status -eq 0 ]]
+
   unstub docker
 }
 
@@ -82,7 +83,8 @@ setup() {
 
   run "$PLUGIN_PATH/hooks/command"
 
-  assert_success
+  [[ $status -eq 0 ]]
+
   unstub docker
 }
 
@@ -97,7 +99,8 @@ setup() {
 
   run "$PLUGIN_PATH/hooks/command"
 
-  assert_success
+  [[ $status -eq 0 ]]
+
   unstub docker
 }
 
@@ -112,7 +115,8 @@ setup() {
 
   run "$PLUGIN_PATH/hooks/command"
 
-  assert_success
+  [[ $status -eq 0 ]]
+
   unstub docker
 }
 
@@ -121,5 +125,5 @@ setup() {
 
   run "$PLUGIN_PATH/hooks/command"
 
-  assert_failure
+  [[ $status -ne 0 ]]
 }

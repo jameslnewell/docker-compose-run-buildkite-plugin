@@ -1,8 +1,6 @@
 #!/usr/bin/env bats
 
 setup() {
-  load /usr/lib/bats-support/load.bash || load /opt/bats/lib/bats-support/load.bash
-  load /usr/lib/bats-assert/load.bash || load /opt/bats/lib/bats-assert/load.bash
   export PLUGIN_PATH="${BATS_TEST_DIRNAME}/.."
   export BUILDKITE_JOB_ID="test-job-id"
   export TMPDIR="$(mktemp -d)"
@@ -24,10 +22,10 @@ teardown() {
 
   run "$PLUGIN_PATH/hooks/pre-exit"
 
-  assert_success
-  assert [ -f "docker-compose-run-plugin.log" ]
-  assert_output --partial "Collecting logs"
-  assert_output --partial "Cleaning up"
+  [[ $status -eq 0 ]]
+  [[ -f "docker-compose-run-plugin.log" ]]
+  [[ "$output" == *"Collecting logs"* ]]
+  [[ "$output" == *"Cleaning up"* ]]
 
   unstub docker
   unstub buildkite-agent
@@ -45,7 +43,7 @@ teardown() {
 
   run "$PLUGIN_PATH/hooks/pre-exit"
 
-  assert_success
+  [[ $status -eq 0 ]]
 
   unstub docker
   unstub buildkite-agent
@@ -63,7 +61,7 @@ teardown() {
 
   run "$PLUGIN_PATH/hooks/pre-exit"
 
-  assert_success
+  [[ $status -eq 0 ]]
 
   unstub docker
   unstub buildkite-agent
