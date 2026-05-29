@@ -10,7 +10,7 @@ plugin_read_list() {
     [[ -z "$value" ]] && break
     echo "$value"
     found=1
-    (( i++ ))
+    (( i++ )) || true  # post-increment evaluates to old value; || true prevents set -e exit when i=0
   done
   if [[ "$found" -eq 0 ]]; then
     local single="${!prefix:-}"
