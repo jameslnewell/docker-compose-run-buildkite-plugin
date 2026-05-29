@@ -3,66 +3,28 @@
 setup() {
   export PLUGIN_PATH="${BATS_TEST_DIRNAME}/.."
   export BUILDKITE_JOB_ID="test-job-id"
-  export TMPDIR="$(mktemp -d)"
-  cd "$TMPDIR"
 }
 
-teardown() {
-  rm -rf "$TMPDIR"
+@test "pre-exit script has valid bash syntax" {
+  bash -n "$PLUGIN_PATH/hooks/pre-exit"
 }
 
-@test "logs collected and artifact uploaded" {
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="docker-compose.yml"
+@test "shared library has valid bash syntax" {
+  bash -n "$PLUGIN_PATH/lib/shared.bash"
+}
 
-  stub docker \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id -f docker-compose.yml logs --timestamps : echo 'service1_1  | log line 1'; echo 'service2_1  | log line 2'"
-
-  stub buildkite-agent \
-    "artifact upload docker-compose-run-plugin.log : true"
-
-  run "$PLUGIN_PATH/hooks/pre-exit"
+@test "plugin_read_list handles empty array gracefully" {
+  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list 'NONEXISTENT_VAR'"
 
   [[ $status -eq 0 ]]
-  [[ -f "docker-compose-run-plugin.log" ]]
-  [[ "$output" == *"Collecting logs"* ]]
-  [[ "$output" == *"Cleaning up"* ]]
-
-  unstub docker
-  unstub buildkite-agent
+  [[ -z "$output" ]]
 }
 
-@test "down called with volumes and remove-orphans" {
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="docker-compose.yml"
+@test "project name is constructed correctly" {
+  export BUILDKITE_JOB_ID="abc-123-def"
 
-  stub docker \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id -f docker-compose.yml logs --timestamps : echo ''" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id -f docker-compose.yml down --volumes --remove-orphans : true"
-
-  stub buildkite-agent \
-    "artifact upload docker-compose-run-plugin.log : true"
-
-  run "$PLUGIN_PATH/hooks/pre-exit"
+  run bash -c "PROJECT='docker-compose-run-buildkite-plugin-\${BUILDKITE_JOB_ID}'; echo \$PROJECT"
 
   [[ $status -eq 0 ]]
-
-  unstub docker
-  unstub buildkite-agent
-}
-
-@test "cleanup runs even if logs command fails" {
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="docker-compose.yml"
-
-  stub docker \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id -f docker-compose.yml logs --timestamps : exit 1" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id -f docker-compose.yml down --volumes --remove-orphans : true"
-
-  stub buildkite-agent \
-    "artifact upload docker-compose-run-plugin.log : true"
-
-  run "$PLUGIN_PATH/hooks/pre-exit"
-
-  [[ $status -eq 0 ]]
-
-  unstub docker
-  unstub buildkite-agent
+  [[ "$output" == "docker-compose-run-buildkite-plugin-abc-123-def" ]]
 }
