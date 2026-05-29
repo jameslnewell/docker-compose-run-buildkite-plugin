@@ -79,7 +79,8 @@ Tests are written using [bats](https://github.com/bats-core/bats-core). The unit
 Install the dependencies (macOS):
 
 ```bash
-brew install bats-core bats-support bats-assert
+brew tap bats-core/bats-core
+brew install bash bats-core bats-core/bats-core/bats-support bats-core/bats-core/bats-assert
 # bats-mock is not in Homebrew — clone it alongside the others:
 git clone https://github.com/buildkite-plugins/bats-mock "$(brew --prefix)/lib/bats-mock"
 ```
@@ -87,7 +88,7 @@ git clone https://github.com/buildkite-plugins/bats-mock "$(brew --prefix)/lib/b
 Run the unit tests (no Docker required):
 
 ```bash
-BATS_LIB_PATH="$(brew --prefix)/lib" bats tests/command.bats tests/pre-exit.bats
+PATH="$(brew --prefix)/bin:$PATH" BATS_LIB_PATH="$(brew --prefix)/lib" bats tests/command.bats tests/pre-exit.bats
 ```
 
 Run the integration tests (requires Docker and Docker Compose):
