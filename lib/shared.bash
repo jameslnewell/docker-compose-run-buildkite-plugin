@@ -16,4 +16,5 @@ plugin_read_list() {
     local single="${!prefix:-}"
     [[ -n "$single" ]] && echo "$single"
   fi
+  return 0
 }
