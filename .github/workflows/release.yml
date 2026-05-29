@@ -26,33 +26,25 @@ jobs:
             exit 1
           fi
 
-      - name: Check tag doesn't already exist
+      - name: Create and push git tag
         run: |
-          if git rev-parse "${{ inputs.version }}" >/dev/null 2>&1; then
-            echo "Tag ${{ inputs.version }} already exists"
-            exit 1
-          fi
+          git tag "${{ inputs.version }}"
+          git push origin "${{ inputs.version }}"
 
       - name: Generate changelog
         id: changelog
         run: |
           {
             echo "CHANGELOG<<EOF"
-            PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ inputs.version }}$" | head -1 || echo "")
             if [ -z "$PREV_TAG" ]; then
               echo "Initial release"
-              git log --oneline --pretty=format:"- %s (%h)"
+              git log --pretty=format:"- %s (%h)"
             else
-              git log --oneline --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD
+              git log --pretty=format:"- %s (%h)" "$PREV_TAG".."${{ inputs.version }}"
             fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
-
-      - name: Create git tag
-        run: git tag "${{ inputs.version }}"
-
-      - name: Push tag
-        run: git push origin "${{ inputs.version }}"
 
       - name: Create GitHub release
         run: |

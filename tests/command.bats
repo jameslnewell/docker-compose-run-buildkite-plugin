@@ -114,3 +114,83 @@ teardown() {
   assert_success
   refute_output --partial "Warning:"
 }
+
+@test "Passes command as string wrapped in default shell" {
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="npm test"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service /bin/sh -e -c \"npm test\" : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+}
+
+@test "Joins command array items with newlines and wraps in default shell" {
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0="export FOO=bar"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_1="npm test"
+
+  # Joined script contains a newline so cannot be matched literally in the plan file
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    ":: true"
+
+  run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
+
+  assert_success
+  assert_output --partial "/bin/sh -e -c"
+  assert_output --partial "export FOO=bar"
+}
+
+@test "Shell false passes command items as direct args" {
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL="false"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0="node"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_1="server.js"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service node server.js : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+}
+
+@test "Custom shell array wraps command" {
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0="/bin/bash"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_1="-e"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_2="-c"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="npm test"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service /bin/bash -e -c \"npm test\" : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+}
+
+@test "Shell as string errors" {
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL="/bin/bash -e -c"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="npm test"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_failure
+  assert_output --partial "Error:"
+}

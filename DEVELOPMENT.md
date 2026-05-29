@@ -39,6 +39,14 @@ Options not defined in the Compose spec follow CLI conventions:
 - `entrypoint` - override the service entrypoint
 - `workdir` - working directory in the container
 
+## Releasing
+
+1. Merge all changes to `main`
+2. Go to **Actions → Create Release → Run workflow**
+3. Enter the version (e.g. `v0.3.0`) and click **Run workflow**
+
+The workflow will tag the commit, push the tag, and create a GitHub release with an auto-generated changelog.
+
 ## Related Documentation
 
 - [Docker Compose Specification](https://compose-spec.io/)

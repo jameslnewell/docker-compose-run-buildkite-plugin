@@ -50,8 +50,35 @@ for v in "${VOLUMES[@]}"; do
   RUN_ARGS+=(-v "$v")
 done
 
+mapfile -t CMD_ITEMS < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND")
+
 if [[ -n "${BUILDKITE_COMMAND:-}" ]]; then
-  echo "Warning: the step's command will not be run inside the container. Specify the command in your docker-compose.yml service definition instead."
+  echo "Warning: the step's command will not be run inside the container. Specify the command via the docker-compose-run plugin's 'command' option instead."
+fi
+
+# Determine shell
+SHELL_ARGS=()
+shell_enabled=true
+if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" =~ ^(false|off|0)$ ]]; then
+  shell_enabled=false
+elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0:-}" ]]; then
+  mapfile -t SHELL_ARGS < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL")
+elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" ]]; then
+  echo "+++ Error: The shell option must be an array or false, not a string."
+  exit 1
+else
+  SHELL_ARGS=("/bin/sh" "-e" "-c")
+fi
+
+CMD_ARGS=()
+if [[ ${#CMD_ITEMS[@]} -gt 0 ]]; then
+  if [[ "$shell_enabled" == "true" ]]; then
+    CMD_ARGS+=("${SHELL_ARGS[@]}")
+    joined_cmd=$(printf '%s\n' "${CMD_ITEMS[@]}")
+    CMD_ARGS+=("${joined_cmd%$'\n'}")
+  else
+    CMD_ARGS+=("${CMD_ITEMS[@]}")
+  fi
 fi
 
 set -x
@@ -59,5 +86,6 @@ docker compose -p "$PROJECT" "${FILE_ARGS[@]}" run \
   --no-deps \
   --rm \
   "${RUN_ARGS[@]}" \
-  "$SERVICE"
+  "$SERVICE" \
+  "${CMD_ARGS[@]}"
 { set +x; } 2>/dev/null

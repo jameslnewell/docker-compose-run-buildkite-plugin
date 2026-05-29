@@ -13,6 +13,16 @@ configuration:
     service:
       type: string
       description: "Service to run (required)"
+    command:
+      type:
+        - string
+        - array
+      description: "Command to run in the container. Multiple items are joined with newlines and passed as a single script to the shell. A warning is emitted if not set and the step has a command."
+    shell:
+      type:
+        - array
+        - boolean
+      description: "Shell used to wrap the command. Defaults to [\"/bin/sh\", \"-e\", \"-c\"]. Set to false to pass command items directly as docker args without a shell wrapper."
     workdir:
       type: string
       description: "Override working directory in the container"
