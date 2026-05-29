@@ -14,6 +14,7 @@ for f in "${FILES[@]}"; do
 done
 
 echo "--- :docker: pulling"
+# TODO: pass "$SERVICE --include-deps" once the flag is broadly available, so we only pull what's needed
 set -x
 docker compose -p "$PROJECT" "${FILE_ARGS[@]}" pull
 { set +x; } 2>/dev/null
