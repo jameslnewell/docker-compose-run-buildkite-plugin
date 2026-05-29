@@ -46,18 +46,18 @@ setup() {
 }
 
 @test "env variable is available in hook environment" {
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENV_0="DATABASE_URL=postgres://localhost"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT_0="DATABASE_URL=postgres://localhost"
 
-  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENV'"
+  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT'"
 
   [[ $status -eq 0 ]]
   [[ "$output" == *"DATABASE_URL=postgres://localhost"* ]]
 }
 
 @test "volume variable is available in hook environment" {
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUME_0="/host:/container"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUMES_0="/host:/container"
 
-  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUME'"
+  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUMES'"
 
   [[ $status -eq 0 ]]
   [[ "$output" == *"/host:/container"* ]]
