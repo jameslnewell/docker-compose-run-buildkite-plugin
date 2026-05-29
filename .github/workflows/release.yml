@@ -39,9 +39,9 @@ jobs:
             PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ inputs.version }}$" | head -1 || echo "")
             if [ -z "$PREV_TAG" ]; then
               echo "Initial release"
-              git log --pretty=format:"- %s (%h)"
+              git log --pretty=format:"- %s (%h)%n"
             else
-              git log --pretty=format:"- %s (%h)" "$PREV_TAG".."${{ inputs.version }}"
+              git log --pretty=format:"- %s (%h)%n" "$PREV_TAG".."${{ inputs.version }}"
             fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
