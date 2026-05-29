@@ -13,18 +13,17 @@ setup() {
   bash -n "$PLUGIN_PATH/lib/shared.bash"
 }
 
-@test "plugin_read_list handles empty array gracefully" {
-  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list 'NONEXISTENT_VAR'"
+@test "plugin_read_list handles missing variable" {
+  source "$PLUGIN_PATH/lib/shared.bash"
 
-  [[ $status -eq 0 ]]
-  [[ -z "$output" ]]
+  result=$(plugin_read_list 'NONEXISTENT_VAR')
+
+  [[ -z "$result" ]]
 }
 
-@test "project name is constructed correctly" {
-  export BUILDKITE_JOB_ID="abc-123-def"
+@test "project name constructed from job id" {
+  BUILDKITE_JOB_ID="abc-123-def"
+  PROJECT="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
 
-  run bash -c "PROJECT='docker-compose-run-buildkite-plugin-\${BUILDKITE_JOB_ID}'; echo \$PROJECT"
-
-  [[ $status -eq 0 ]]
-  [[ "$output" == "docker-compose-run-buildkite-plugin-abc-123-def" ]]
+  [[ "$PROJECT" == "docker-compose-run-buildkite-plugin-abc-123-def" ]]
 }
