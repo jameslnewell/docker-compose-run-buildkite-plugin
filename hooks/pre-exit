@@ -15,9 +15,9 @@ done
 echo "--- :docker: logging"
 set -x
 docker compose -p "$PROJECT" "${FILE_ARGS[@]}" logs --timestamps 2>&1 \
-  | sort > docker-compose-run-plugin.log || true
+  | sort > docker-compose-run-buildkite-plugin.log || true
 { set +x; } 2>/dev/null
-buildkite-agent artifact upload docker-compose-run-plugin.log || true
+buildkite-agent artifact upload docker-compose-run-buildkite-plugin.log || true
 
 echo "--- :docker: downing"
 set -x
