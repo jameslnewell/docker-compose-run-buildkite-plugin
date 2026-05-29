@@ -24,7 +24,7 @@ configuration:
       description: "Environment variables as KEY=VALUE"
     volumes:
       type: array
-      description: "Volume mounts as host:container"
+      description: "Volume mounts as host:container. Relative host paths (starting with .) are resolved against pwd."
   required:
     - service
   additionalProperties: false
