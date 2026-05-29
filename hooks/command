@@ -13,13 +13,17 @@ for f in "${FILES[@]}"; do
   FILE_ARGS+=(-f "$f")
 done
 
-echo "--- :docker: Pulling images"
+echo "--- :docker: pulling"
+set -x
 docker compose -p "$PROJECT" "${FILE_ARGS[@]}" pull
+{ set +x; } 2>/dev/null
 
-echo "--- :docker: Starting dependencies"
+echo "--- :docker: upping"
+set -x
 docker compose -p "$PROJECT" "${FILE_ARGS[@]}" up --wait --scale "${SERVICE}=0"
+{ set +x; } 2>/dev/null
 
-echo "+++ :docker: Running ${SERVICE}"
+echo "+++ :docker: running"
 
 RUN_ARGS=()
 workdir="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_WORKDIR:-}"
@@ -38,8 +42,10 @@ for v in "${VOLUMES[@]}"; do
   RUN_ARGS+=(-v "$v")
 done
 
+set -x
 docker compose -p "$PROJECT" "${FILE_ARGS[@]}" run \
   --no-deps \
   --rm \
   "${RUN_ARGS[@]}" \
   "$SERVICE"
+{ set +x; } 2>/dev/null

@@ -12,10 +12,14 @@ for f in "${FILES[@]}"; do
   FILE_ARGS+=(-f "$f")
 done
 
-echo "--- :docker: Collecting logs"
+echo "--- :docker: logging"
+set -x
 docker compose -p "$PROJECT" "${FILE_ARGS[@]}" logs --timestamps 2>&1 \
   | sort > docker-compose-run-plugin.log || true
+{ set +x; } 2>/dev/null
 buildkite-agent artifact upload docker-compose-run-plugin.log || true
 
-echo "--- :docker: Cleaning up"
+echo "--- :docker: downing"
+set -x
 docker compose -p "$PROJECT" "${FILE_ARGS[@]}" down --volumes --remove-orphans || true
+{ set +x; } 2>/dev/null
