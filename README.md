@@ -23,8 +23,8 @@ All resources are cleaned up automatically, even on failure.
 | `service` | string | ✓ | Service to run |
 | `workdir` | string | — | Override working directory in the container |
 | `entrypoint` | string | — | Override container entrypoint |
-| `env` | array | — | Environment variables as `KEY=VALUE` |
-| `volume` | array | — | Volume mounts as `host:container` |
+| `environment` | array | — | Environment variables as `KEY=VALUE` |
+| `volumes` | array | — | Volume mounts as `host:container` |
 
 ## Usage
 
@@ -45,7 +45,7 @@ steps:
           file:
             - docker-compose.yml
             - docker-compose.test.yml
-          env:
+          environment:
             - DATABASE_URL=postgres://localhost/test
             - NODE_ENV=test
 
@@ -54,7 +54,7 @@ steps:
       - jameslnewell/docker-compose-run#v1.0.0:
           service: web
           workdir: /app
-          volume:
+          volumes:
             - ./src:/app/src
 ```
 

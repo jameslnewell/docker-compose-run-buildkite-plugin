@@ -19,10 +19,10 @@ configuration:
     entrypoint:
       type: string
       description: "Override container entrypoint"
-    env:
+    environment:
       type: array
       description: "Environment variables as KEY=VALUE"
-    volume:
+    volumes:
       type: array
       description: "Volume mounts as host:container"
   required:
