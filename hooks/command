@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${DIR}/../lib/shared.bash"
+
+SERVICE="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE}"
+PROJECT="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
+
+mapfile -t FILES < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE")
+FILE_ARGS=()
+for f in "${FILES[@]}"; do
+  FILE_ARGS+=(-f "$f")
+done
+
+echo "--- :docker: Pulling images"
+docker compose -p "$PROJECT" "${FILE_ARGS[@]}" pull
+
+echo "--- :docker: Starting dependencies"
+docker compose -p "$PROJECT" "${FILE_ARGS[@]}" up --wait --scale "${SERVICE}=0"
+
+echo "+++ :docker: Running ${SERVICE}"
+
+RUN_ARGS=()
+workdir="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_WORKDIR:-}"
+[[ -n "$workdir" ]] && RUN_ARGS+=(--workdir "$workdir")
+
+entrypoint="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT:-}"
+[[ -n "$entrypoint" ]] && RUN_ARGS+=(--entrypoint "$entrypoint")
+
+mapfile -t ENVS < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENV")
+for e in "${ENVS[@]}"; do
+  RUN_ARGS+=(-e "$e")
+done
+
+mapfile -t VOLUMES < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUME")
+for v in "${VOLUMES[@]}"; do
+  RUN_ARGS+=(-v "$v")
+done
+
+docker compose -p "$PROJECT" "${FILE_ARGS[@]}" run \
+  --no-deps \
+  --rm \
+  "${RUN_ARGS[@]}" \
+  "$SERVICE"

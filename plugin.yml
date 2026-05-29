@@ -1,0 +1,30 @@
+name: Docker Compose Run
+description: Run a docker compose service with phase-level timing and automatic cleanup
+author: https://github.com/jameslnewell
+requirements:
+  - docker
+configuration:
+  properties:
+    file:
+      type:
+        - string
+        - array
+      description: "Docker compose file(s)"
+    service:
+      type: string
+      description: "Service to run (required)"
+    workdir:
+      type: string
+      description: "Override working directory in the container"
+    entrypoint:
+      type: string
+      description: "Override container entrypoint"
+    env:
+      type: array
+      description: "Environment variables as KEY=VALUE"
+    volume:
+      type: array
+      description: "Volume mounts as host:container"
+  required:
+    - service
+  additionalProperties: false
