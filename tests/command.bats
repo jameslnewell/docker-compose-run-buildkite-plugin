@@ -1,7 +1,9 @@
 #!/usr/bin/env bats
 
 setup() {
-  load "$BATS_PLUGIN_PATH/load.bash"
+  load /usr/lib/bats-support/load.bash || load /opt/bats/lib/bats-support/load.bash
+  load /usr/lib/bats-assert/load.bash || load /opt/bats/lib/bats-assert/load.bash
+  export PLUGIN_PATH="${BATS_TEST_DIRNAME}/.."
   export BUILDKITE_JOB_ID="test-job-id"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test-service"
 }
