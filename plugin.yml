@@ -17,18 +17,18 @@ configuration:
       type:
         - string
         - array
-      description: "Command to run in the container. Multiple items are joined with newlines and passed as a single script to the shell. A warning is emitted if not set and the step has a command."
+      description: "Command args to pass directly to the service container (no shell wrapper). Use the step's commands field for shell-wrapped execution."
     shell:
       type:
         - array
         - boolean
-      description: "Shell used to wrap the command. Defaults to [\"/bin/sh\", \"-e\", \"-c\"]. Set to false to pass command items directly as docker args without a shell wrapper."
+      description: "Shell used to wrap step commands. Defaults to [\"/bin/sh\", \"-e\", \"-c\"]. Set to false to pass BUILDKITE_COMMAND directly without a shell wrapper. Has no effect when the plugin 'command' option is used."
     workdir:
       type: string
       description: "Override working directory in the container"
     entrypoint:
       type: string
-      description: "Override container entrypoint"
+      description: "Override container entrypoint. When set, shell wrapping is suppressed for step commands."
     environment:
       type: array
       description: "Environment variables as KEY=VALUE"
