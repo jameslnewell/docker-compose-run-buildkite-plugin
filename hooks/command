@@ -20,9 +20,14 @@ docker compose -p "$PROJECT" "${FILE_ARGS[@]}" pull
 { set +x; } 2>/dev/null
 
 echo "--- :docker: upping"
-set -x
-docker compose -p "$PROJECT" "${FILE_ARGS[@]}" up --wait --scale "${SERVICE}=0"
-{ set +x; } 2>/dev/null
+# Enumerate deps explicitly rather than --scale SERVICE=0: some compose versions
+# wait indefinitely for a scaled-to-zero service that never becomes healthy.
+mapfile -t DEP_SERVICES < <(docker compose -p "$PROJECT" "${FILE_ARGS[@]}" config --services | grep -v "^${SERVICE}$")
+if [[ ${#DEP_SERVICES[@]} -gt 0 ]]; then
+  set -x
+  docker compose -p "$PROJECT" "${FILE_ARGS[@]}" up --wait "${DEP_SERVICES[@]}"
+  { set +x; } 2>/dev/null
+fi
 
 echo "+++ :docker: running"
 
