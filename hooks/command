@@ -77,10 +77,12 @@ fi
 # Determine shell (only applies to step commands)
 SHELL_ARGS=()
 shell_enabled=true
+shell_explicitly_set=false
 if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" =~ ^(false|off|0)$ ]]; then
   shell_enabled=false
 elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0:-}" ]]; then
   mapfile -t SHELL_ARGS < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL")
+  shell_explicitly_set=true
 elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" ]]; then
   echo "+++ Error: The shell option must be an array or false, not a string."
   exit 1
@@ -90,6 +92,12 @@ fi
 
 # Any entrypoint (even "") suppresses shell wrapping — matches official buildkite docker plugin.
 [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT+set}" == "set" ]] && shell_enabled=false
+
+# Error if shell was explicitly set as an array but entrypoint suppresses it.
+if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT+set}" == "set" && "$shell_explicitly_set" == "true" ]]; then
+  echo "+++ Error: The shell option has no effect when entrypoint is set — entrypoint suppresses shell wrapping."
+  exit 1
+fi
 
 CMD_ARGS=()
 if [[ "$has_step_commands" == "true" ]]; then
