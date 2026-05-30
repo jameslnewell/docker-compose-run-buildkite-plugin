@@ -91,7 +91,7 @@ teardown() {
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -106,7 +106,7 @@ teardown() {
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -115,13 +115,27 @@ teardown() {
   refute_output --partial "Warning:"
 }
 
+@test "Starts dependency services before running the target" {
+  unset BUILDKITE_COMMAND
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : printf 'dep-service\ntest-service\n'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait dep-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+}
+
 @test "Passes command as string wrapped in default shell" {
   unset BUILDKITE_COMMAND
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="npm test"
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service /bin/sh -e -c \"npm test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -137,7 +151,7 @@ teardown() {
   # Joined script contains a newline so cannot be matched literally in the plan file
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     ":: true"
 
   run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
@@ -155,7 +169,7 @@ teardown() {
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service node server.js : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -172,7 +186,7 @@ teardown() {
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service /bin/bash -e -c \"npm test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -187,7 +201,7 @@ teardown() {
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --scale test-service=0 : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
 
   run "$PLUGIN_PATH/hooks/command"
 
