@@ -90,6 +90,7 @@ fi
 set -x
 docker compose -p "$PROJECT" "${FILE_ARGS[@]}" run \
   --no-deps \
+  --pull never \
   --rm \
   "${RUN_ARGS[@]}" \
   "$SERVICE" \

@@ -92,7 +92,7 @@ teardown() {
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -107,7 +107,7 @@ teardown() {
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -122,7 +122,7 @@ teardown() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : printf 'dep-service\ntest-service\n'" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait dep-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -136,7 +136,7 @@ teardown() {
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service /bin/sh -e -c \"npm test\" : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service /bin/sh -e -c \"npm test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -170,7 +170,7 @@ teardown() {
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service node server.js : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service node server.js : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -187,7 +187,7 @@ teardown() {
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service /bin/bash -e -c \"npm test\" : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service /bin/bash -e -c \"npm test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
