@@ -34,17 +34,27 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
+          echo "::group::Lookup previous tag"
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ inputs.version }}$" | head -1 || echo "")
+          echo "Previous tag: ${PREV_TAG:-<none — initial release>}"
+          echo "::endgroup::"
+
+          echo "::group::Collect commit log"
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG_BODY=$(echo "Initial release"; git log --pretty=format:"- %s (%h)%n")
+          else
+            CHANGELOG_BODY=$(git log --pretty=format:"- %s (%h)%n" "$PREV_TAG".."${{ inputs.version }}")
+          fi
+          echo "$CHANGELOG_BODY"
+          echo "::endgroup::"
+
+          echo "::group::Write to GITHUB_OUTPUT"
           {
             echo "CHANGELOG<<EOF"
-            PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ inputs.version }}$" | head -1 || echo "")
-            if [ -z "$PREV_TAG" ]; then
-              echo "Initial release"
-              git log --pretty=format:"- %s (%h)%n"
-            else
-              git log --pretty=format:"- %s (%h)%n" "$PREV_TAG".."${{ inputs.version }}"
-            fi
+            echo "$CHANGELOG_BODY"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+          echo "::endgroup::"
 
       - name: Create GitHub release
         run: |

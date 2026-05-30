@@ -57,12 +57,17 @@ for v in "${VOLUMES[@]}"; do
 done
 
 mapfile -t CMD_ITEMS < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND")
+has_step_commands=false
+[[ -n "${BUILDKITE_COMMAND:-}" ]] && has_step_commands=true
+has_plugin_commands=false
+[[ ${#CMD_ITEMS[@]} -gt 0 ]] && has_plugin_commands=true
 
-if [[ -n "${BUILDKITE_COMMAND:-}" ]]; then
-  echo "Warning: the step's command will not be run inside the container. Specify the command via the docker-compose-run plugin's 'command' option instead."
+if [[ "$has_step_commands" == "true" && "$has_plugin_commands" == "true" ]]; then
+  echo "+++ Error: Cannot specify both step commands and plugin commands. Move commands to the step or to the plugin 'command' option, not both."
+  exit 1
 fi
 
-# Determine shell
+# Determine shell (only applies to step commands)
 SHELL_ARGS=()
 shell_enabled=true
 if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" =~ ^(false|off|0)$ ]]; then
@@ -76,15 +81,19 @@ else
   SHELL_ARGS=("/bin/sh" "-e" "-c")
 fi
 
+# Entrypoint suppresses shell wrapping for step commands
+[[ -n "$entrypoint" ]] && shell_enabled=false
+
 CMD_ARGS=()
-if [[ ${#CMD_ITEMS[@]} -gt 0 ]]; then
+if [[ "$has_step_commands" == "true" ]]; then
   if [[ "$shell_enabled" == "true" ]]; then
-    CMD_ARGS+=("${SHELL_ARGS[@]}")
-    joined_cmd=$(printf '%s\n' "${CMD_ITEMS[@]}")
-    CMD_ARGS+=("${joined_cmd%$'\n'}")
+    CMD_ARGS+=("${SHELL_ARGS[@]}" "$BUILDKITE_COMMAND")
   else
-    CMD_ARGS+=("${CMD_ITEMS[@]}")
+    CMD_ARGS+=("$BUILDKITE_COMMAND")
   fi
+elif [[ "$has_plugin_commands" == "true" ]]; then
+  # Plugin commands are passed directly as container CMD args — no shell wrapper
+  CMD_ARGS+=("${CMD_ITEMS[@]}")
 fi
 
 set -x

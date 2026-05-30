@@ -86,33 +86,35 @@ teardown() {
   [[ "$output" == *"/host:/container"* ]]
 }
 
-@test "Warns when step has a command" {
+@test "Runs step command in shell" {
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
   export BUILDKITE_COMMAND="make test"
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service /bin/sh -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
-  assert_output --partial "Warning:"
   unset BUILDKITE_COMMAND
 }
 
-@test "No warning when step has no command" {
-  unset BUILDKITE_COMMAND
+@test "Errors when both step and plugin commands are specified" {
+  export BUILDKITE_COMMAND="make test"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="npm test"
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
 
   run "$PLUGIN_PATH/hooks/command"
 
-  assert_success
-  refute_output --partial "Warning:"
+  assert_failure
+  assert_output --partial "Error:"
+  unset BUILDKITE_COMMAND
 }
 
 @test "Starts dependency services before running the target" {
@@ -129,41 +131,22 @@ teardown() {
   assert_success
 }
 
-@test "Passes command as string wrapped in default shell" {
+@test "Plugin command string passed as direct arg" {
   unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="npm test"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="node"
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service /bin/sh -e -c \"npm test\" : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service node : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
 }
 
-@test "Joins command array items with newlines and wraps in default shell" {
+@test "Plugin command array items passed as direct args" {
   unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0="export FOO=bar"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_1="npm test"
-
-  # Joined script contains a newline so cannot be matched literally in the plan file
-  stub docker \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    ":: true"
-
-  run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
-
-  assert_success
-  assert_output --partial "/bin/sh -e -c"
-  assert_output --partial "export FOO=bar"
-}
-
-@test "Shell false passes command items as direct args" {
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL="false"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0="node"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_1="server.js"
 
@@ -177,21 +160,57 @@ teardown() {
   assert_success
 }
 
-@test "Custom shell array wraps command" {
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0="/bin/bash"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_1="-e"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_2="-c"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="npm test"
+@test "Step command with shell false passed directly" {
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL="false"
+  export BUILDKITE_COMMAND="make test"
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service /bin/bash -e -c \"npm test\" : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
+  unset BUILDKITE_COMMAND
+}
+
+@test "Custom shell array wraps step command" {
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0="/bin/bash"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_1="-e"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_2="-c"
+  export BUILDKITE_COMMAND="make test"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service /bin/bash -e -c \"make test\" : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  unset BUILDKITE_COMMAND
+}
+
+@test "Entrypoint suppresses shell for step commands" {
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT="/bin/sh"
+  export BUILDKITE_COMMAND="make test"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm --entrypoint /bin/sh test-service \"make test\" : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  unset BUILDKITE_COMMAND
 }
 
 @test "Shell as string errors" {
