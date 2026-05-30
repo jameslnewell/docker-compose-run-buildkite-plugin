@@ -46,6 +46,22 @@ for e in "${ENVS[@]}"; do
   RUN_ARGS+=(-e "$e")
 done
 
+if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_AWS:-false}" == "true" ]]; then
+  RUN_ARGS+=(-e "AWS_REGION")
+  RUN_ARGS+=(-e "AWS_DEFAULT_REGION")
+  RUN_ARGS+=(-e "AWS_ACCESS_KEY_ID")
+  RUN_ARGS+=(-e "AWS_SECRET_ACCESS_KEY")
+  RUN_ARGS+=(-e "AWS_SESSION_TOKEN")
+fi
+
+if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_BUILDKITE_ENVIRONMENT:-false}" == "true" ]]; then
+  while IFS='=' read -r key _; do
+    if [[ "$key" == "CI" || "$key" == "BUILDKITE" || "$key" == BUILDKITE_* ]]; then
+      RUN_ARGS+=(-e "$key")
+    fi
+  done < <(env)
+fi
+
 mapfile -t VOLUMES < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUMES")
 for v in "${VOLUMES[@]}"; do
   if [[ "$v" == *:* ]]; then

@@ -264,3 +264,38 @@ teardown() {
   assert_failure
   assert_output --partial "Error:"
 }
+
+@test "propagate-aws passes AWS credential and region env vars" {
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_AWS="true"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm -e AWS_REGION -e AWS_DEFAULT_REGION -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN test-service : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+}
+
+@test "propagate-buildkite-environment adds CI and BUILDKITE_* vars" {
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_BUILDKITE_ENVIRONMENT="true"
+  export CI="true"
+  export BUILDKITE="true"
+  export BUILDKITE_BRANCH="main"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
+    ":: true"
+
+  run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
+
+  assert_success
+  assert_output --partial "-e CI"
+  assert_output --partial "-e BUILDKITE "
+  assert_output --partial "-e BUILDKITE_BRANCH"
+}

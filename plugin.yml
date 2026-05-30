@@ -33,6 +33,12 @@ configuration:
     volumes:
       type: array
       description: "Volume mounts as host:container. Relative host paths (starting with .) are resolved against pwd."
+    propagate-aws:
+      type: boolean
+      description: "Propagate AWS credential and region env vars (AWS_REGION, AWS_DEFAULT_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN)"
+    propagate-buildkite-environment:
+      type: boolean
+      description: "Propagate CI, BUILDKITE and all BUILDKITE_* env vars from the host into the container"
   required:
     - service
   additionalProperties: false
