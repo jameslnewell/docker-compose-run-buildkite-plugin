@@ -145,7 +145,7 @@ teardown() {
   assert_output --partial "Error:"
 }
 
-@test "Empty entrypoint clears image ENTRYPOINT and still shell-wraps step commands" {
+@test "Empty entrypoint clears image ENTRYPOINT and suppresses shell" {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT=""
   unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
   unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
@@ -160,7 +160,7 @@ teardown() {
 
   assert_success
   assert_output --partial "--entrypoint"
-  assert_output --partial "/bin/sh -e -c"
+  refute_output --partial "/bin/sh -e -c"
   unset BUILDKITE_COMMAND
 }
 

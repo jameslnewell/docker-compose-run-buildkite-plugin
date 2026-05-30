@@ -26,7 +26,7 @@ configuration:
       description: "Override working directory in the container"
     entrypoint:
       type: string
-      description: "Override container entrypoint. Set to \"\" to clear the image's ENTRYPOINT (CMD is then run directly or shell-wrapped). Set to a non-empty path to override and suppress shell wrapping for step commands."
+      description: "Override container entrypoint. Any value (including \"\") suppresses shell wrapping for step commands, matching the official buildkite docker plugin. Use \"\" to clear the image's ENTRYPOINT while passing plugin command args directly."
     environment:
       type: array
       description: "Environment variables as KEY=VALUE"

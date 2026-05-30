@@ -88,9 +88,8 @@ else
   SHELL_ARGS=("/bin/sh" "-e" "-c")
 fi
 
-# Non-empty entrypoint suppresses shell wrapping for step commands.
-# An empty-string entrypoint ("") clears the image's ENTRYPOINT but does not suppress shell.
-[[ -n "$entrypoint" ]] && shell_enabled=false
+# Any entrypoint (even "") suppresses shell wrapping — matches official buildkite docker plugin.
+[[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT+set}" == "set" ]] && shell_enabled=false
 
 CMD_ARGS=()
 if [[ "$has_step_commands" == "true" ]]; then
