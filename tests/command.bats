@@ -232,6 +232,24 @@ teardown() {
   unset BUILDKITE_COMMAND
 }
 
+@test "Shell array with entrypoint errors" {
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT="/bin/sh"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0="/bin/bash"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_1="-e"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_2="-c"
+  export BUILDKITE_COMMAND="make test"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_failure
+  assert_output --partial "Error:"
+  unset BUILDKITE_COMMAND
+}
+
 @test "Shell as string errors" {
   unset BUILDKITE_COMMAND
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL="/bin/bash -e -c"
