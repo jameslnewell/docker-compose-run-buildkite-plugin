@@ -35,8 +35,11 @@ RUN_ARGS=()
 workdir="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_WORKDIR:-}"
 [[ -n "$workdir" ]] && RUN_ARGS+=(--workdir "$workdir")
 
-entrypoint="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT:-}"
-[[ -n "$entrypoint" ]] && RUN_ARGS+=(--entrypoint "$entrypoint")
+entrypoint=""
+if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT+set}" == "set" ]]; then
+  entrypoint="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT}"
+  RUN_ARGS+=(--entrypoint "$entrypoint")
+fi
 
 mapfile -t ENVS < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT")
 for e in "${ENVS[@]}"; do
@@ -56,6 +59,10 @@ for v in "${VOLUMES[@]}"; do
   RUN_ARGS+=(-v "$v")
 done
 
+if [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND:-}" && -z "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0:-}" ]]; then
+  echo "+++ Error: The command option must be an array, not a string. Use command: ['arg1', 'arg2']."
+  exit 1
+fi
 mapfile -t CMD_ITEMS < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND")
 has_step_commands=false
 [[ -n "${BUILDKITE_COMMAND:-}" ]] && has_step_commands=true
@@ -81,7 +88,8 @@ else
   SHELL_ARGS=("/bin/sh" "-e" "-c")
 fi
 
-# Entrypoint suppresses shell wrapping for step commands
+# Non-empty entrypoint suppresses shell wrapping for step commands.
+# An empty-string entrypoint ("") clears the image's ENTRYPOINT but does not suppress shell.
 [[ -n "$entrypoint" ]] && shell_enabled=false
 
 CMD_ARGS=()

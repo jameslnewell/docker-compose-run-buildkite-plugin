@@ -131,18 +131,37 @@ teardown() {
   assert_success
 }
 
-@test "Plugin command string passed as direct arg" {
+@test "Plugin command as string errors" {
   unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="node"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="node server.js"
+
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_failure
+  assert_output --partial "Error:"
+}
+
+@test "Empty entrypoint clears image ENTRYPOINT and still shell-wraps step commands" {
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT=""
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
+  export BUILDKITE_COMMAND="make test"
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --pull never --rm test-service node : true"
+    ":: true"
 
-  run "$PLUGIN_PATH/hooks/command"
+  run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
 
   assert_success
+  assert_output --partial "--entrypoint"
+  assert_output --partial "/bin/sh -e -c"
+  unset BUILDKITE_COMMAND
 }
 
 @test "Plugin command array items passed as direct args" {
