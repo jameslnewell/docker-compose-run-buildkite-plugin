@@ -31,6 +31,12 @@ fi
 
 echo "+++ :docker: running"
 
+# --pull was added to `docker compose run` in Compose v2.15.0; skip on older versions
+RUN_PULL_ARGS=()
+if docker compose run --help 2>&1 | grep -q -- '--pull'; then
+  RUN_PULL_ARGS+=(--pull never)
+fi
+
 RUN_ARGS=()
 workdir="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_WORKDIR:-}"
 [[ -n "$workdir" ]] && RUN_ARGS+=(--workdir "$workdir")
@@ -130,7 +136,8 @@ fi
 set -x
 docker compose -p "$PROJECT" "${FILE_ARGS[@]}" run \
   --no-deps \
-  --pull never \
+  --no-build \
+  "${RUN_PULL_ARGS[@]}" \
   --rm \
   "${RUN_ARGS[@]}" \
   "$SERVICE" \
