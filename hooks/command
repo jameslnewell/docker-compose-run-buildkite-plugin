@@ -34,11 +34,11 @@ echo "+++ :docker: running"
 # --no-build and --pull were added to `docker compose run` in later Compose versions; skip on older
 COMPOSE_RUN_HELP="$(docker compose run --help 2>&1)"
 RUN_NO_BUILD_ARGS=()
-if echo "$COMPOSE_RUN_HELP" | grep -q -- '--no-build'; then
+if echo "$COMPOSE_RUN_HELP" | grep -qE '^\s+--no-build(\s|$)'; then
   RUN_NO_BUILD_ARGS+=(--no-build)
 fi
 RUN_PULL_ARGS=()
-if echo "$COMPOSE_RUN_HELP" | grep -q -- '--pull'; then
+if echo "$COMPOSE_RUN_HELP" | grep -qE '^\s+--pull(\s|$)'; then
   RUN_PULL_ARGS+=(--pull never)
 fi
 
