@@ -13,6 +13,8 @@ for f in "${FILES[@]}"; do
   FILE_ARGS+=(-f "$f")
 done
 
+trap 'docker compose -p "$PROJECT" "${FILE_ARGS[@]}" down --volumes --remove-orphans 2>/dev/null || true' EXIT
+
 echo "--- :docker: pulling"
 # TODO: pass "$SERVICE --include-deps" once the flag is broadly available, so we only pull what's needed
 set -x
