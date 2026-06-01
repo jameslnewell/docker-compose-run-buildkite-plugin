@@ -4,6 +4,10 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/../lib/shared.bash"
 
+# Leading space keeps the xtrace prefix from colliding with Buildkite's
+# ---/+++/~~~ log-group markers when this hook is sourced (see hooks/command).
+PS4=' + '
+
 PROJECT="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
 
 mapfile -t FILES < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE")

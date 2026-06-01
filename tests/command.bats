@@ -86,6 +86,31 @@ teardown() {
   [[ "$output" == *"/host:/container"* ]]
 }
 
+@test "xtrace prefix never collides with Buildkite log-group markers" {
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
+  export BUILDKITE_COMMAND="make test"
+
+  stub docker \
+    "compose --help : printf '  --progress plain\n'" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
+    "compose run --help : printf '  --no-build\n  --pull\n'" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service /bin/sh -e -c \"make test\" : true"
+
+  # The agent sources this hook, so set -x runs deep enough that the default
+  # PS4='+ ' would trace as a run of '+' (e.g. '+++ docker ...') — which
+  # Buildkite parses as a log-group header. Source the hook to reproduce that
+  # nesting and assert no traced docker command begins with a ---/+++/~~~ marker.
+  # Legit headers ("+++ :docker: running") are fine; only flag a marker
+  # immediately followed by a traced "docker" command.
+  run bash -c "source \"$PLUGIN_PATH/hooks/command\" 2>&1"
+
+  assert_success
+  refute_line --regexp '^[-+~]+ docker '
+  unset BUILDKITE_COMMAND
+}
+
 @test "Runs step command in shell" {
   unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
   unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
