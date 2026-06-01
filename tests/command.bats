@@ -95,8 +95,7 @@ teardown() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service /bin/sh -e -c \"make test\" : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service /bin/sh -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -113,8 +112,7 @@ teardown() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service /bin/sh -e -c \"make test\" : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service /bin/sh -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -128,8 +126,7 @@ teardown() {
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -146,8 +143,7 @@ teardown() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : printf 'dep-service\ntest-service\n'" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait dep-service : true" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -160,8 +156,7 @@ teardown() {
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -198,8 +193,7 @@ teardown() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service node server.js : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service node server.js : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -216,8 +210,7 @@ teardown() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service \"make test\" : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -237,8 +230,7 @@ teardown() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service /bin/bash -e -c \"make test\" : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm test-service /bin/bash -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -256,8 +248,7 @@ teardown() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm --entrypoint /bin/sh test-service \"make test\" : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm --entrypoint /bin/sh test-service \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -274,8 +265,7 @@ teardown() {
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -291,8 +281,7 @@ teardown() {
 
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -308,8 +297,7 @@ teardown() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm -e AWS_REGION -e AWS_DEFAULT_REGION -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --no-build --pull never --rm -e AWS_REGION -e AWS_DEFAULT_REGION -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
