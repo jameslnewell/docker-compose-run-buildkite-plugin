@@ -126,7 +126,8 @@ teardown() {
 
   stub docker \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
+    "compose run --help : printf '  --no-build\n  --pull\n'"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -156,7 +157,8 @@ teardown() {
 
   stub docker \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
+    "compose run --help : printf '  --no-build\n  --pull\n'"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -265,7 +267,8 @@ teardown() {
 
   stub docker \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
+    "compose run --help : printf '  --no-build\n  --pull\n'"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -281,7 +284,8 @@ teardown() {
 
   stub docker \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
+    "compose run --help : printf '  --no-build\n  --pull\n'"
 
   run "$PLUGIN_PATH/hooks/command"
 
