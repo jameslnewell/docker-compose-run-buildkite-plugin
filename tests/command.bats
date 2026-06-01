@@ -92,6 +92,7 @@ teardown() {
   export BUILDKITE_COMMAND="make test"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
@@ -109,10 +110,11 @@ teardown() {
   export BUILDKITE_COMMAND="make test"
 
   stub docker \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
+    "compose --help : echo ''" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : echo 'no such flag'" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service /bin/sh -e -c \"make test\" : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --no-deps --rm test-service /bin/sh -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -125,6 +127,7 @@ teardown() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="npm test"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'"
@@ -140,6 +143,7 @@ teardown() {
   unset BUILDKITE_COMMAND
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : printf 'dep-service\ntest-service\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait dep-service : true" \
@@ -156,6 +160,7 @@ teardown() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="node server.js"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'"
@@ -173,6 +178,7 @@ teardown() {
   export BUILDKITE_COMMAND="make test"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
@@ -192,6 +198,7 @@ teardown() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_1="server.js"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
@@ -209,6 +216,7 @@ teardown() {
   export BUILDKITE_COMMAND="make test"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
@@ -229,6 +237,7 @@ teardown() {
   export BUILDKITE_COMMAND="make test"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
@@ -247,6 +256,7 @@ teardown() {
   export BUILDKITE_COMMAND="make test"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
@@ -266,6 +276,7 @@ teardown() {
   export BUILDKITE_COMMAND="make test"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'"
@@ -283,6 +294,7 @@ teardown() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND="npm test"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'"
@@ -298,6 +310,7 @@ teardown() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_AWS="true"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
@@ -317,6 +330,7 @@ teardown() {
   export BUILDKITE_BRANCH="main"
 
   stub docker \
+    "compose --help : printf '  --progress plain\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id config --services : echo test-service" \
     "compose run --help : printf '  --no-build\n  --pull\n'" \
