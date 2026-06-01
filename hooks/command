@@ -78,8 +78,8 @@ for v in "${VOLUMES[@]}"; do
   if [[ "$v" == *:* ]]; then
     host="${v%%:*}"
     rest="${v#*:}"
-    if [[ "$host" == .* ]]; then
-      host="$(pwd)${host#.}"
+    if [[ "$host" == ./* ]] || [[ "$host" == . ]]; then
+      host="$(pwd)/${host#./}"
     fi
     v="${host}:${rest}"
   fi
