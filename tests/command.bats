@@ -97,7 +97,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service /bin/sh -e -c \"make test\" : true"
 
   # The agent sources this hook, so set -x runs deep enough that the default
@@ -127,7 +127,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service /bin/sh -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -149,7 +149,7 @@ teardown() {
     "compose pull --help : echo 'no such flag'" \
     "compose up --help : echo 'no such flag'" \
     "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --rm test-service /bin/sh -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -168,7 +168,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -190,14 +190,14 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
   # The dependency tree is started with the target scaled to 0 (not started here).
-  assert_output --partial "up --wait --detach --pull never --scale test-service=0 test-service"
+  assert_output --partial "up --detach --pull never --scale test-service=0 test-service"
 }
 
 @test "Plugin command as string errors" {
@@ -210,7 +210,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -230,7 +230,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     ":: true"
 
   run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
@@ -252,7 +252,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service node server.js : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -272,7 +272,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -295,7 +295,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service /bin/bash -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -316,7 +316,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm --entrypoint /bin/sh test-service \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -338,7 +338,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -358,7 +358,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -376,7 +376,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm -e AWS_REGION -e AWS_DEFAULT_REGION -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -398,7 +398,7 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --wait --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     ":: true"
 
   run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"

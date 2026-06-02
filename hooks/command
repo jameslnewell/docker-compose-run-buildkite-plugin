@@ -67,7 +67,7 @@ fi
 # depends_on tree without starting the target itself.
 echo "--- :docker: upping"
 set -x
-docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" up --wait --detach "${UP_PRELOADED_ARGS[@]}" --scale "${SERVICE}=0" "$SERVICE"
+docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" up --detach "${UP_PRELOADED_ARGS[@]}" --scale "${SERVICE}=0" "$SERVICE"
 { set +x; } 2>/dev/null
 
 echo "+++ :docker: running"

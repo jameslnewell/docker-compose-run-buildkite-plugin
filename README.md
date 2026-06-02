@@ -61,7 +61,7 @@ steps:
 ## How It Works
 
 1. **Pull Phase** — When Compose supports `pull --include-deps`, runs `docker compose pull --include-deps <service>` to fetch only the target service and its dependency tree. Skipped entirely on older Compose that lacks the flag.
-2. **Up Phase** — Runs `docker compose up --wait --detach --scale <service>=0 <service>` to bring up the target's dependency tree and wait for their conditions, without starting the target itself. Adds `--pull never` when the pull phase already fetched the images.
+2. **Up Phase** — Runs `docker compose up --detach --scale <service>=0 <service>` to bring up the target's dependency tree and wait for their conditions, without starting the target itself. Adds `--pull never` when the pull phase already fetched the images.
 3. **Run Phase** — Executes `docker compose run --rm <service>` with any configured overrides. Adds `--pull never` when the pull phase already fetched the images.
 4. **Cleanup Phase** — Always runs `docker compose down --volumes --remove-orphans` and collects logs as artifacts
 
