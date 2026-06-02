@@ -28,34 +28,31 @@ if docker compose --help 2>&1 | grep -qE '^\s+--progress(\s|$)'; then
   COMPOSE_PROGRESS_ARGS=(--progress=plain)
 fi
 
-echo "--- :docker: pulling"
-# TODO: pass "$SERVICE --include-deps" once the flag is broadly available, so we only pull what's needed
-set -x
-docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" pull
-{ set +x; } 2>/dev/null
+# `docker compose run` (below, without --no-deps) brings up the service's depends_on
+# tree and waits for their conditions, so we don't enumerate or `up` dependencies here.
+# When Compose supports both `pull --include-deps` and `run --pull`, fetch just the
+# target + its deps in a separately-timed phase and tell `run` not to re-pull. Older
+# Compose lacks these flags — there we skip the pull phase and let `run` pull on demand.
+PULL_SUPPORTS_INCLUDE_DEPS=false
+if docker compose pull --help 2>&1 | grep -qE '^\s+--include-deps(\s|$)'; then
+  PULL_SUPPORTS_INCLUDE_DEPS=true
+fi
+RUN_SUPPORTS_PULL=false
+if docker compose run --help 2>&1 | grep -qE '^\s+--pull(\s|$)'; then
+  RUN_SUPPORTS_PULL=true
+fi
 
-echo "--- :docker: upping"
-# Enumerate deps explicitly rather than --scale SERVICE=0: some compose versions
-# wait indefinitely for a scaled-to-zero service that never becomes healthy.
-mapfile -t DEP_SERVICES < <(docker compose -p "$PROJECT" "${FILE_ARGS[@]}" config --services | grep -v "^${SERVICE}$")
-if [[ ${#DEP_SERVICES[@]} -gt 0 ]]; then
+RUN_PRELOADED_ARGS=()
+if [[ "$PULL_SUPPORTS_INCLUDE_DEPS" == "true" && "$RUN_SUPPORTS_PULL" == "true" ]]; then
+  echo "--- :docker: pulling"
   set -x
-  docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" up --wait "${DEP_SERVICES[@]}"
+  docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" pull --include-deps "$SERVICE"
   { set +x; } 2>/dev/null
+  # Images (target + deps) are now local, so the run must not re-pull.
+  RUN_PRELOADED_ARGS=(--pull never)
 fi
 
 echo "+++ :docker: running"
-
-# --no-build and --pull were added to `docker compose run` in later Compose versions; skip on older
-COMPOSE_RUN_HELP="$(docker compose run --help 2>&1)"
-RUN_NO_BUILD_ARGS=()
-if echo "$COMPOSE_RUN_HELP" | grep -qE '^\s+--no-build(\s|$)'; then
-  RUN_NO_BUILD_ARGS+=(--no-build)
-fi
-RUN_PULL_ARGS=()
-if echo "$COMPOSE_RUN_HELP" | grep -qE '^\s+--pull(\s|$)'; then
-  RUN_PULL_ARGS+=(--pull never)
-fi
 
 RUN_ARGS=()
 workdir="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_WORKDIR:-}"
@@ -155,9 +152,7 @@ fi
 
 set -x
 docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" run \
-  --no-deps \
-  "${RUN_NO_BUILD_ARGS[@]}" \
-  "${RUN_PULL_ARGS[@]}" \
+  "${RUN_PRELOADED_ARGS[@]}" \
   --rm \
   "${RUN_ARGS[@]}" \
   "$SERVICE" \
