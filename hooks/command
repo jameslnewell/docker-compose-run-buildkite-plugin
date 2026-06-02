@@ -28,29 +28,47 @@ if docker compose --help 2>&1 | grep -qE '^\s+--progress(\s|$)'; then
   COMPOSE_PROGRESS_ARGS=(--progress=plain)
 fi
 
-# `docker compose run` (below, without --no-deps) brings up the service's depends_on
-# tree and waits for their conditions, so we don't enumerate or `up` dependencies here.
-# When Compose supports both `pull --include-deps` and `run --pull`, fetch just the
-# target + its deps in a separately-timed phase and tell `run` not to re-pull. Older
-# Compose lacks these flags — there we skip the pull phase and let `run` pull on demand.
+# Feature-detect flags that vary across Compose versions.
 PULL_SUPPORTS_INCLUDE_DEPS=false
 if docker compose pull --help 2>&1 | grep -qE '^\s+--include-deps(\s|$)'; then
   PULL_SUPPORTS_INCLUDE_DEPS=true
+fi
+UP_SUPPORTS_PULL=false
+if docker compose up --help 2>&1 | grep -qE '^\s+--pull(\s|$)'; then
+  UP_SUPPORTS_PULL=true
 fi
 RUN_SUPPORTS_PULL=false
 if docker compose run --help 2>&1 | grep -qE '^\s+--pull(\s|$)'; then
   RUN_SUPPORTS_PULL=true
 fi
 
-RUN_PRELOADED_ARGS=()
-if [[ "$PULL_SUPPORTS_INCLUDE_DEPS" == "true" && "$RUN_SUPPORTS_PULL" == "true" ]]; then
+# Pull only the target service and its dependency tree, when Compose can scope it.
+# Older Compose lacks --include-deps — there we skip this phase and let later steps pull.
+if [[ "$PULL_SUPPORTS_INCLUDE_DEPS" == "true" ]]; then
   echo "--- :docker: pulling"
   set -x
   docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" pull --include-deps "$SERVICE"
   { set +x; } 2>/dev/null
-  # Images (target + deps) are now local, so the run must not re-pull.
+fi
+
+# Once the pull phase has fetched the images, tell the later `up`/`run` not to pull
+# again. Gated on the pull having happened (and each flag existing); `--pull never`
+# would otherwise be unsafe — `up --scale=0` never pulls the target image itself.
+UP_PRELOADED_ARGS=()
+if [[ "$PULL_SUPPORTS_INCLUDE_DEPS" == "true" && "$UP_SUPPORTS_PULL" == "true" ]]; then
+  UP_PRELOADED_ARGS=(--pull never)
+fi
+RUN_PRELOADED_ARGS=()
+if [[ "$PULL_SUPPORTS_INCLUDE_DEPS" == "true" && "$RUN_SUPPORTS_PULL" == "true" ]]; then
   RUN_PRELOADED_ARGS=(--pull never)
 fi
+
+# Start only the dependencies: scaling the target to 0 brings up (and waits on) its
+# depends_on tree without starting the target itself.
+echo "--- :docker: upping"
+set -x
+docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" up --wait --detach "${UP_PRELOADED_ARGS[@]}" --scale "${SERVICE}=0" "$SERVICE"
+{ set +x; } 2>/dev/null
 
 echo "+++ :docker: running"
 
