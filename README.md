@@ -2,10 +2,10 @@
 
 Buildkite plugin to run a docker compose service with phase-level timing and automatic cleanup.
 
-This plugin breaks execution into three separate log groups so each phase's time is visible in Buildkite:
-1. **Pull images** — fetches all required images
-2. **Start dependencies** — brings up dependent services (excluding the target service)
-3. **Run** — executes the target service with specified overrides
+This plugin breaks execution into separate log groups so each phase's time is visible in Buildkite:
+1. **Pull images** — fetches the target service and its dependencies (`pull --include-deps`)
+2. **Start dependencies** — brings up the target's dependency tree (scaling the target to 0) and waits for their conditions
+3. **Run** — runs the target service
 
 All resources are cleaned up automatically, even on failure.
 
@@ -60,9 +60,9 @@ steps:
 
 ## How It Works
 
-1. **Pull Phase** — Executes `docker compose pull` to fetch all required images
-2. **Up Phase** — Executes `docker compose up --wait --scale service=0` to start dependencies without starting the target service
-3. **Run Phase** — Executes `docker compose run --no-deps --rm` with any configured overrides
+1. **Pull Phase** — When Compose supports `pull --include-deps`, runs `docker compose pull --include-deps <service>` to fetch only the target service and its dependency tree. Skipped entirely on older Compose that lacks the flag.
+2. **Up Phase** — Runs `docker compose up --wait --detach --scale <service>=0 <service>` to bring up the target's dependency tree and wait for their conditions, without starting the target itself. Adds `--pull never` when the pull phase already fetched the images.
+3. **Run Phase** — Executes `docker compose run --rm <service>` with any configured overrides. Adds `--pull never` when the pull phase already fetched the images.
 4. **Cleanup Phase** — Always runs `docker compose down --volumes --remove-orphans` and collects logs as artifacts
 
 Each phase is visible as a separate log group in Buildkite, allowing you to see where time is being spent.
