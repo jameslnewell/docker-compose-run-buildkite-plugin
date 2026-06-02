@@ -63,11 +63,17 @@ if [[ "$PULL_SUPPORTS_INCLUDE_DEPS" == "true" && "$RUN_SUPPORTS_PULL" == "true" 
   RUN_PRELOADED_ARGS=(--pull never)
 fi
 
-# Start only the dependencies: scaling the target to 0 brings up (and waits on) its
-# depends_on tree without starting the target itself.
+# Start only the dependencies: scaling the target to 0 brings up its depends_on tree
+# without starting the target itself.
+#
+# We deliberately omit `--wait` here. Compose before v2.16.0 has a bug where `up --wait`
+# combined with `--scale <service>=0` hangs forever, waiting on the scaled-to-0 target
+# that is never started (docker/compose#9149, fixed in v2.16.0). Once our lowest
+# supported Compose version is >= v2.16.0 we can add `--wait` back to block on the
+# dependency tree becoming healthy.
 echo "--- :docker: upping"
 set -x
-docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" up --wait --detach "${UP_PRELOADED_ARGS[@]}" --scale "${SERVICE}=0" "$SERVICE"
+docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" up --detach "${UP_PRELOADED_ARGS[@]}" --scale "${SERVICE}=0" "$SERVICE"
 { set +x; } 2>/dev/null
 
 echo "+++ :docker: running"
