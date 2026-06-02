@@ -8,9 +8,11 @@ source "${DIR}/../lib/shared.bash"
 # The agent sources this hook, so `set -x` runs a few shell-nesting levels deep
 # and bash replicates PS4's first character once per level — the default '+ '
 # can become '+++ ', which Buildkite would parse as a group header (each traced
-# command becomes its own section, leaving our intended groups empty). A leading
-# space can never form a marker at any depth.
-PS4=' + '
+# command becomes its own section, leaving our intended groups empty). An empty
+# PS4 emits no prefix at all (bash does not fall back to a default), so the
+# traced command itself starts the line — and every command we trace begins
+# with `docker`/`buildkite-agent`, never a marker.
+PS4=''
 
 SERVICE="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE}"
 PROJECT="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
