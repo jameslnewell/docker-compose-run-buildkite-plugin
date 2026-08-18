@@ -439,3 +439,27 @@ teardown() {
   assert_output --partial "-e BUILDKITE "
   assert_output --partial "-e BUILDKITE_BRANCH"
 }
+
+@test "propagate-buildkite-environment ignores lines inside a multi-line value" {
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_BUILDKITE_ENVIRONMENT="true"
+  # A real commit message spans lines; reading `env` line-by-line would take the
+  # second line for another NAME=VALUE record and forward BUILDKITE_NOT_A_VAR.
+  export BUILDKITE_MESSAGE=$'fix: something\nBUILDKITE_NOT_A_VAR=surprise'
+
+  stub docker \
+    "compose --help : printf '  --progress plain\n'" \
+    "compose pull --help : printf '  --include-deps\n'" \
+    "compose up --help : printf '  --pull\n'" \
+    "compose run --help : printf '  --pull\n'" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
+    ":: true"
+
+  run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
+
+  assert_success
+  assert_output --partial "-e BUILDKITE_MESSAGE"
+  refute_output --partial "BUILDKITE_NOT_A_VAR"
+}

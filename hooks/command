@@ -104,11 +104,18 @@ if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_AWS:-false}" == "true" ]]
 fi
 
 if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_BUILDKITE_ENVIRONMENT:-false}" == "true" ]]; then
-  while IFS='=' read -r key _; do
+  # `compgen -e`, not `env`: `env` prints NAME=VALUE records separated by
+  # newlines, so a variable whose value contains a newline (a commit message,
+  # a multi-line BUILDKITE_COMMAND) makes each of its continuation lines look
+  # like another record — and a line such as `BUILDKITE_FOO=1` inside a value
+  # would be forwarded as if `BUILDKITE_FOO` were a real variable. `compgen -e`
+  # lists the names of exported variables only, and a name can never contain a
+  # newline, so one line is always exactly one name.
+  while read -r key; do
     if [[ "$key" == "CI" || "$key" == "BUILDKITE" || "$key" == BUILDKITE_* ]]; then
       RUN_ARGS+=(-e "$key")
     fi
-  done < <(env)
+  done < <(compgen -e)
 fi
 
 if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUMES"; then
