@@ -150,41 +150,50 @@ if [[ "$has_step_commands" == "true" && "$has_plugin_commands" == "true" ]]; the
   exit 1
 fi
 
-# Determine shell (only applies to step commands)
+# Shell wrapping resolves the same way as the official buildkite docker plugin:
+# off unless something turns it on. The step having a command of its own turns it
+# on, because BUILDKITE_COMMAND is a script that needs a shell to interpret it.
+# Naming a shell explicitly also turns it on — and that applies to the plugin's
+# own `command` too, which is how a multi-line script is handed to it.
 SHELL_ARGS=()
-shell_enabled=true
-shell_explicitly_set=false
+shell_disabled=true
+[[ "$has_step_commands" == "true" ]] && shell_disabled=false
+
+# Any entrypoint (even "") turns wrapping back off: the entrypoint now decides how
+# the remaining arguments are interpreted. An explicitly named shell below can
+# still turn it back on — the official plugin resolves the two in that order.
+[[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT+set}" == "set" ]] && shell_disabled=true
+
 if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" =~ ^(false|off|0)$ ]]; then
-  shell_enabled=false
+  shell_disabled=true
 elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0:-}" ]]; then
   plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL"
   SHELL_ARGS=("${result[@]}")
-  shell_explicitly_set=true
+  shell_disabled=false
 elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" ]]; then
   echo "+++ Error: The shell option must be an array or false, not a string."
   exit 1
-else
+fi
+
+if [[ "$shell_disabled" == "false" && ${#SHELL_ARGS[@]} -eq 0 ]]; then
   SHELL_ARGS=("/bin/sh" "-e" "-c")
 fi
 
-# Any entrypoint (even "") suppresses shell wrapping — matches official buildkite docker plugin.
-[[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT+set}" == "set" ]] && shell_enabled=false
-
-# Error if shell was explicitly set as an array but entrypoint suppresses it.
-if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT+set}" == "set" && "$shell_explicitly_set" == "true" ]]; then
-  echo "+++ Error: The shell option has no effect when entrypoint is set — entrypoint suppresses shell wrapping."
-  exit 1
+CMD_ARGS=()
+# Only prepend the shell when there is something for it to run. A shell with no
+# script operand is worse than no shell at all — `sh -c` exits with "-c requires
+# an argument" — and with neither a step command nor a plugin command the
+# service's own command is what should run. The official plugin emits the bare
+# shell here and the container fails; this is a deliberate divergence.
+if [[ "$has_step_commands" == "true" || "$has_plugin_commands" == "true" ]]; then
+  if [[ "$shell_disabled" == "false" ]]; then
+    CMD_ARGS+=("${SHELL_ARGS[@]}")
+  fi
 fi
 
-CMD_ARGS=()
 if [[ "$has_step_commands" == "true" ]]; then
-  if [[ "$shell_enabled" == "true" ]]; then
-    CMD_ARGS+=("${SHELL_ARGS[@]}" "$BUILDKITE_COMMAND")
-  else
-    CMD_ARGS+=("$BUILDKITE_COMMAND")
-  fi
+  CMD_ARGS+=("$BUILDKITE_COMMAND")
 elif [[ "$has_plugin_commands" == "true" ]]; then
-  # Plugin commands are passed directly as container CMD args — no shell wrapper
   CMD_ARGS+=("${CMD_ITEMS[@]}")
 fi
 

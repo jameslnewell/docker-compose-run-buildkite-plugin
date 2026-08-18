@@ -356,11 +356,17 @@ teardown() {
   unset BUILDKITE_COMMAND
 }
 
-@test "Shell array with entrypoint errors" {
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT="/bin/sh"
+@test "Explicit shell array applies alongside a cleared entrypoint" {
+  # An entrypoint suppresses the *default* shell, but naming one explicitly turns
+  # wrapping back on — the official docker plugin resolves the two in that order.
+  # Clearing the service's entrypoint and then asking for a shell is the common
+  # reason to set both.
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT=""
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0="/bin/bash"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_1="-e"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_2="-c"
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
   export BUILDKITE_COMMAND="make test"
 
   stub docker \
@@ -369,13 +375,105 @@ teardown() {
     "compose up --help : printf '  --pull\n'" \
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm --entrypoint \"\" test-service /bin/bash -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
-  assert_failure
-  assert_output --partial "Error:"
+  assert_success
   unset BUILDKITE_COMMAND
+}
+
+@test "Explicit shell array applies alongside a wrapper entrypoint" {
+  # Compose concatenates entrypoint and command, so a wrapper entrypoint that
+  # execs its arguments (tini, dumb-init, env, gosu) composes with a shell. This
+  # combination used to fail the step outright.
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT="/usr/bin/env"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0="/bin/bash"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_1="-e"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_2="-c"
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
+  export BUILDKITE_COMMAND="make test"
+
+  stub docker \
+    "compose --help : printf '  --progress plain\n'" \
+    "compose pull --help : printf '  --include-deps\n'" \
+    "compose up --help : printf '  --pull\n'" \
+    "compose run --help : printf '  --pull\n'" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm --entrypoint /usr/bin/env test-service /bin/bash -e -c \"make test\" : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  unset BUILDKITE_COMMAND
+}
+
+@test "Explicit shell array wraps the plugin command" {
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0="/bin/sh"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_1="-e"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_2="-c"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0=$'cd terraform\nterraform init'
+
+  stub docker \
+    "compose --help : printf '  --progress plain\n'" \
+    "compose pull --help : printf '  --include-deps\n'" \
+    "compose up --help : printf '  --pull\n'" \
+    "compose run --help : printf '  --pull\n'" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service /bin/sh -e -c \$'cd terraform\nterraform init' : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+}
+
+@test "Plugin command without a shell stays bare argv" {
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0="npx"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_1="prisma"
+
+  stub docker \
+    "compose --help : printf '  --progress plain\n'" \
+    "compose pull --help : printf '  --include-deps\n'" \
+    "compose up --help : printf '  --pull\n'" \
+    "compose run --help : printf '  --pull\n'" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service npx prisma : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+}
+
+@test "Explicit shell is not added when there is no command to run" {
+  # A shell with no script operand exits with "-c requires an argument", so the
+  # shell must never be prepended with nothing to wrap — the service's own
+  # command is what should run. The official plugin emits the bare shell here.
+  unset BUILDKITE_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0="/bin/sh"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_1="-e"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_2="-c"
+
+  stub docker \
+    "compose --help : printf '  --progress plain\n'" \
+    "compose pull --help : printf '  --include-deps\n'" \
+    "compose up --help : printf '  --pull\n'" \
+    "compose run --help : printf '  --pull\n'" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
 }
 
 @test "Shell as string errors" {

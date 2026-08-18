@@ -47,21 +47,22 @@ steps:
           command: ["npx", "prisma", "migrate", "deploy"]
 ```
 
-A single array item may span multiple lines, which is how you hand a whole script to a shell of your choosing:
+A single array item may span multiple lines, so a whole script can be handed to a shell. Name the shell with the `shell` option and the script is the only thing left in `command`:
 
 ```yaml
 steps:
   - plugins:
       - jameslnewell/docker-compose-run#v0.14.1:
           service: terraform
+          shell: ["/bin/sh", "-ec"]
           command:
-            - /bin/sh
-            - -ec
             - |
               cd terraform/production
               terraform init
               terraform plan
 ```
+
+Naming the shell inside `command` works too — `command: ["/bin/sh", "-ec", "<script>"]` — but the `shell` option is what the official `docker` plugin uses, and it keeps the two concerns apart.
 
 Mount extra paths and override the working directory:
 
@@ -94,10 +95,10 @@ steps:
 |--------|------|---------|-------------|
 | `service` | string | — | **Required.** Compose service to run. |
 | `file` | string or array | Compose's own file discovery (`compose.yaml`, `docker-compose.yml`, …) | Compose file(s), passed through as `-f`. Later files override earlier ones, as they do on the CLI. |
-| `command` | array | — | Argv passed as the service's command, with no shell wrapper. Each array item is one token. Cannot be combined with the step's `command`. |
-| `shell` | array or boolean | `["/bin/sh", "-e", "-c"]` | Shell used to wrap the step's command. Set to `false` to pass the command through unwrapped. Has no effect when the plugin's `command` option is used. |
+| `command` | array | — | Argv passed as the service's command. Each array item is one token, and an item may span multiple lines. Not wrapped in a shell unless `shell` names one. Cannot be combined with the step's `command`. |
+| `shell` | array or boolean | `["/bin/sh", "-e", "-c"]` for the step's command; none for the plugin's `command` | Shell to wrap the command in. Setting it explicitly wraps the plugin's `command` too, which is how a multi-line script is run. Set to `false` to pass the step's command through unwrapped. |
 | `workdir` | string | the service's | Working directory inside the container, passed as `--workdir`. |
-| `entrypoint` | string | the service's | Override the service's entrypoint. Any value — including `""` — also suppresses shell wrapping, matching the official `docker` plugin. Use `""` to clear an entrypoint while passing `command` args directly. |
+| `entrypoint` | string | the service's | Override the service's entrypoint. Any value — including `""` — suppresses the *default* shell wrapping; setting `shell` explicitly turns it back on. Matches the official `docker` plugin. Use `""` to clear an entrypoint while passing `command` args directly. |
 | `environment` | array | — | Environment variables as `KEY=VALUE`, passed as `-e`. |
 | `volumes` | array | — | Volume mounts as `host:container`, passed as `-v`. Host paths of `.` or beginning with `./` are resolved against `pwd`, so `./src:/app/src` mounts a directory from the checkout. |
 | `propagate-aws` | boolean | `false` | Propagate `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. |
@@ -110,7 +111,11 @@ steps:
 The service's command comes from either the step or the plugin, never both:
 
 - **Step command** — `BUILDKITE_COMMAND` is wrapped in `shell` (`/bin/sh -e -c` by default) and passed to `docker compose run`. This is what most steps want, because it supports multi-line scripts, pipes and `&&`.
-- **Plugin `command`** — the array is passed as argv directly, with no shell. Use it for steps that have no command of their own.
+- **Plugin `command`** — the array is passed as argv. There is no shell unless `shell` names one, in which case the shell is prepended and the array becomes its arguments. Use it for steps that have no command of their own.
+
+Shell wrapping resolves the same way as the official `docker` plugin: off unless something turns it on. A step command turns it on; so does naming a `shell`. An `entrypoint` turns it back off, and an explicit `shell` overrides that in turn.
+
+Setting both `entrypoint` and `shell` composes rather than conflicts, because Docker runs the entrypoint with the container's arguments appended to it. `entrypoint: ""` clears the image's entrypoint so the shell runs directly, and a wrapper entrypoint that execs its arguments — `tini`, `dumb-init`, `env`, `gosu` — runs the shell in turn. An entrypoint that does *not* exec its arguments will instead receive the shell's path as an argument of its own, which is rarely what you want.
 
 If neither is set, the service runs the command from its compose definition.
 
