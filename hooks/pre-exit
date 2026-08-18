@@ -10,11 +10,12 @@ PS4=''
 
 PROJECT="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
 
-mapfile -t FILES < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE")
 FILE_ARGS=()
-for f in "${FILES[@]}"; do
-  FILE_ARGS+=(-f "$f")
-done
+if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE"; then
+  for f in "${result[@]}"; do
+    FILE_ARGS+=(-f "$f")
+  done
+fi
 
 echo "~~~ :docker: logging"
 set -x

@@ -26,7 +26,7 @@ Options not defined in the Compose spec follow either the Docker CLI's naming or
 | `propagate-aws` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_AWS` | Propagate AWS credential and region env vars |
 | `propagate-buildkite-environment` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_BUILDKITE_ENVIRONMENT` | Propagate `CI`, `BUILDKITE` and `BUILDKITE_*` |
 
-Array options are read with `plugin_read_list` in [`lib/shared.bash`](./lib/shared.bash), which reads the `_0`, `_1`, … indexed variables the agent exports for YAML arrays and falls back to the unindexed variable for scalars.
+Array options are read with `plugin_read_list_into_result` in [`lib/shared.bash`](./lib/shared.bash), which reads the `_0`, `_1`, … indexed variables the agent exports for YAML arrays, falls back to the unindexed variable for scalars, and returns non-zero when the option is unset. It appends into the global `result` array — like the official [`docker`](https://github.com/buildkite-plugins/docker-buildkite-plugin) plugin's helper of the same name — rather than printing values for `mapfile` to re-read, because an item may itself contain newlines (a whole shell script passed as one `command:` entry) and a newline-delimited round-trip would split it into one argv entry per line.
 
 ### Compose feature detection
 

@@ -17,11 +17,12 @@ PS4=''
 SERVICE="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE}"
 PROJECT="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
 
-mapfile -t FILES < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE")
 FILE_ARGS=()
-for f in "${FILES[@]}"; do
-  FILE_ARGS+=(-f "$f")
-done
+if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE"; then
+  for f in "${result[@]}"; do
+    FILE_ARGS+=(-f "$f")
+  done
+fi
 
 COMPOSE_PROGRESS_ARGS=()
 if docker compose --help 2>&1 | grep -qE '^\s+--progress(\s|$)'; then
@@ -88,10 +89,11 @@ if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT+set}" == "set" ]]; then
   RUN_ARGS+=(--entrypoint "$entrypoint")
 fi
 
-mapfile -t ENVS < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT")
-for e in "${ENVS[@]}"; do
-  RUN_ARGS+=(-e "$e")
-done
+if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT"; then
+  for e in "${result[@]}"; do
+    RUN_ARGS+=(-e "$e")
+  done
+fi
 
 if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_AWS:-false}" == "true" ]]; then
   RUN_ARGS+=(-e "AWS_REGION")
@@ -116,24 +118,28 @@ if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_BUILDKITE_ENVIRONMENT:-fa
   done < <(compgen -e)
 fi
 
-mapfile -t VOLUMES < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUMES")
-for v in "${VOLUMES[@]}"; do
-  if [[ "$v" == *:* ]]; then
-    host="${v%%:*}"
-    rest="${v#*:}"
-    if [[ "$host" == ./* ]] || [[ "$host" == . ]]; then
-      host="$(pwd)/${host#./}"
+if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUMES"; then
+  for v in "${result[@]}"; do
+    if [[ "$v" == *:* ]]; then
+      host="${v%%:*}"
+      rest="${v#*:}"
+      if [[ "$host" == ./* ]] || [[ "$host" == . ]]; then
+        host="$(pwd)/${host#./}"
+      fi
+      v="${host}:${rest}"
     fi
-    v="${host}:${rest}"
-  fi
-  RUN_ARGS+=(-v "$v")
-done
+    RUN_ARGS+=(-v "$v")
+  done
+fi
 
 if [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND:-}" && -z "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0:-}" ]]; then
   echo "+++ Error: The command option must be an array, not a string. Use command: ['arg1', 'arg2']."
   exit 1
 fi
-mapfile -t CMD_ITEMS < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND")
+CMD_ITEMS=()
+if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND"; then
+  CMD_ITEMS=("${result[@]}")
+fi
 has_step_commands=false
 [[ -n "${BUILDKITE_COMMAND:-}" ]] && has_step_commands=true
 has_plugin_commands=false
@@ -151,7 +157,8 @@ shell_explicitly_set=false
 if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" =~ ^(false|off|0)$ ]]; then
   shell_enabled=false
 elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0:-}" ]]; then
-  mapfile -t SHELL_ARGS < <(plugin_read_list "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL")
+  plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL"
+  SHELL_ARGS=("${result[@]}")
   shell_explicitly_set=true
 elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" ]]; then
   echo "+++ Error: The shell option must be an array or false, not a string."

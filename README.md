@@ -47,6 +47,22 @@ steps:
           command: ["npx", "prisma", "migrate", "deploy"]
 ```
 
+A single array item may span multiple lines, which is how you hand a whole script to a shell of your choosing:
+
+```yaml
+steps:
+  - plugins:
+      - jameslnewell/docker-compose-run#v0.14.1:
+          service: terraform
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cd terraform/production
+              terraform init
+              terraform plan
+```
+
 Mount extra paths and override the working directory:
 
 ```yaml

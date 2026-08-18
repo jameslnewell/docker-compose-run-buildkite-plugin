@@ -19,9 +19,19 @@ containing spaces must be wrapped in escaped quotes so eval treats it as one tok
 "compose ... run --no-deps --rm service /bin/sh -e -c \"npm test\" : true"
 ```
 
-For stubs where an argument contains a newline (e.g. a joined multi-line script),
-use `:: true` to accept the call unconditionally and verify via `assert_output --partial`
-with stderr captured:
+Because patterns are eval'd, an argument containing a newline can still be matched
+exactly — write it as an ANSI-C quoted string with the `$` escaped so bash passes
+`$'...'` through to the stub plan verbatim:
+
+```bash
+stub docker \
+  "compose ... pull : true" \
+  "compose ... run --rm service /bin/sh -ec \$'cd terraform\nterraform init' : true" \
+  ...
+```
+
+When an exact pattern would be unwieldy, fall back to `:: true` to accept the call
+unconditionally and verify via `assert_output --partial` with stderr captured:
 
 ```bash
 stub docker \
@@ -34,7 +44,15 @@ run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
 assert_output --partial "/bin/sh -e -c"
 ```
 
-## shared.bash — use printf not echo
+## shared.bash — never round-trip list values through a stream
 
-`echo "$value"` swallows values starting with `-e` (bash treats it as a flag).
-Always use `printf '%s\n' "$value"` when printing arbitrary variable values.
+`plugin_read_list_into_result` appends into the global `result` array. Do not
+"simplify" it back into something that prints values for `mapfile -t` to read:
+a list item can legitimately contain newlines (a whole script passed as one
+`command:` entry), and a newline-delimited round-trip splits it into one argv
+entry per line — `sh -c` then runs only the first line and the step still
+exits 0.
+
+When a value does have to be printed, use `printf '%s\n' "$value"`, not
+`echo "$value"` — `echo` swallows values starting with `-e` (bash treats it as
+a flag).
