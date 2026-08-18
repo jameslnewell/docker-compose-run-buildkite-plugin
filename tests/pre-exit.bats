@@ -13,12 +13,12 @@ setup() {
   bash -n "$PLUGIN_PATH/lib/shared.bash"
 }
 
-@test "plugin_read_list handles missing variable" {
+@test "plugin_read_list_into_result handles missing variable" {
   source "$PLUGIN_PATH/lib/shared.bash"
 
-  result=$(plugin_read_list 'NONEXISTENT_VAR')
+  run plugin_read_list_into_result 'NONEXISTENT_VAR'
 
-  [[ -z "$result" ]]
+  [[ $status -ne 0 ]]
 }
 
 @test "project name constructed from job id" {

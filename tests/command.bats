@@ -34,44 +34,52 @@ teardown() {
   [[ $status -eq 0 ]]
 }
 
-@test "plugin_read_list returns single string" {
+@test "plugin_read_list_into_result returns single string" {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="docker-compose.yml"
 
-  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE'"
+  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list_into_result 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE'; printf '%s\n' \"\${result[@]}\""
 
   [[ $status -eq 0 ]]
   [[ "$output" == "docker-compose.yml" ]]
 }
 
-@test "plugin_read_list returns array values" {
+@test "plugin_read_list_into_result returns array values" {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE_0="docker-compose.yml"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE_1="docker-compose.test.yml"
 
-  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE'"
+  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list_into_result 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE'; printf '%s\n' \"\${result[@]}\""
 
   [[ $status -eq 0 ]]
   [[ "$output" == *"docker-compose.yml"* ]]
   [[ "$output" == *"docker-compose.test.yml"* ]]
 }
 
-@test "plugin_read_list with indexed array reads all items under set -e" {
-  # Regression: (( i++ )) returns exit code 1 when i=0, which set -e in a
-  # process substitution subshell would turn into an early exit, silently
-  # dropping all items after index 0.
+@test "plugin_read_list_into_result with indexed array reads all items under set -e" {
+  # Regression: (( i++ )) returns exit code 1 when i=0, which set -e would turn
+  # into an early return, silently dropping all items after index 0.
   export MY_VAR_0="first"
   export MY_VAR_1="second"
   export MY_VAR_2="third"
-  mapfile -t result < <(set -e; source $PLUGIN_PATH/lib/shared.bash; plugin_read_list "MY_VAR")
-  [[ "${#result[@]}" -eq 3 ]]
-  [[ "${result[0]}" == "first" ]]
-  [[ "${result[1]}" == "second" ]]
-  [[ "${result[2]}" == "third" ]]
+  run bash -c "set -e; source $PLUGIN_PATH/lib/shared.bash; plugin_read_list_into_result 'MY_VAR'; printf '%s\n' \"\${#result[@]}\""
+  [[ $status -eq 0 ]]
+  [[ "$output" == "3" ]]
+}
+
+@test "plugin_read_list_into_result keeps a multi-line item as one entry" {
+  # Regression: the list used to be printed newline-delimited and re-read with
+  # mapfile -t, which split a multi-line item into one entry per line.
+  export MY_VAR_0="/bin/sh"
+  export MY_VAR_1="-ec"
+  export MY_VAR_2=$'cd terraform\nterraform init'
+  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list_into_result 'MY_VAR'; printf '%s\n' \"\${#result[@]}\""
+  [[ $status -eq 0 ]]
+  [[ "$output" == "3" ]]
 }
 
 @test "env variable is available in hook environment" {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT_0="DATABASE_URL=postgres://localhost"
 
-  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT'"
+  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list_into_result 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT'; printf '%s\n' \"\${result[@]}\""
 
   [[ $status -eq 0 ]]
   [[ "$output" == *"DATABASE_URL=postgres://localhost"* ]]
@@ -80,7 +88,7 @@ teardown() {
 @test "volume variable is available in hook environment" {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUMES_0="/host:/container"
 
-  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUMES'"
+  run bash -c "source $PLUGIN_PATH/lib/shared.bash; plugin_read_list_into_result 'BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUMES'; printf '%s\n' \"\${result[@]}\""
 
   [[ $status -eq 0 ]]
   [[ "$output" == *"/host:/container"* ]]
@@ -254,6 +262,29 @@ teardown() {
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service node server.js : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+}
+
+@test "Multi-line plugin command item stays a single arg" {
+  # Regression: a `command:` item holding a whole shell script used to be split
+  # into one argv entry per line, so `sh -c` ran only the first line (typically
+  # a `cd`) and bound the rest to $0, $1, … — silently, and with exit status 0.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0="/bin/sh"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_1="-ec"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_2=$'cd terraform\nterraform init'
+
+  stub docker \
+    "compose --help : printf '  --progress plain\n'" \
+    "compose pull --help : printf '  --include-deps\n'" \
+    "compose up --help : printf '  --pull\n'" \
+    "compose run --help : printf '  --pull\n'" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --rm test-service /bin/sh -ec \$'cd terraform\nterraform init' : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
