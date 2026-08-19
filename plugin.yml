@@ -15,18 +15,18 @@ configuration:
       description: "Service to run (required)"
     command:
       type: array
-      description: "Argv to pass as the service CMD (no shell wrapper). Each array item is one token. Use the step's commands field for shell-wrapped execution."
+      description: "Argv to pass as the service CMD. Each array item is one token, and an item may span multiple lines. Not wrapped in a shell unless the shell option names one."
     shell:
       type:
         - array
         - boolean
-      description: "Shell used to wrap step commands. Defaults to [\"/bin/sh\", \"-e\", \"-c\"]. Set to false to pass BUILDKITE_COMMAND directly without a shell wrapper. Has no effect when the plugin 'command' option is used."
+      description: "Shell to wrap the command in. The step's command defaults to [\"/bin/sh\", \"-e\", \"-c\"]; the plugin's command option is not wrapped unless this option names a shell, which is how a multi-line script is run. Set to false to pass BUILDKITE_COMMAND directly without a shell wrapper."
     workdir:
       type: string
       description: "Override working directory in the container"
     entrypoint:
       type: string
-      description: "Override container entrypoint. Any value (including \"\") suppresses shell wrapping for step commands, matching the official buildkite docker plugin. Use \"\" to clear the image's ENTRYPOINT while passing plugin command args directly."
+      description: "Override container entrypoint. Any value (including \"\") suppresses the default shell wrapping; setting the shell option explicitly turns it back on, matching the official buildkite docker plugin. Use \"\" to clear the image's ENTRYPOINT while passing plugin command args directly."
     environment:
       type: array
       description: "Environment variables as KEY=VALUE"
