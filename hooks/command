@@ -17,9 +17,23 @@ PS4=''
 SERVICE="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE}"
 PROJECT="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
 
+# Array expansions here are written "${arr[@]+"${arr[@]}"}" rather than plain
+# "${arr[@]}". Under `set -u` bash only expands an empty array to nothing from 4.4
+# onwards; before that the expansion is an "unbound variable" error that kills the
+# hook. Most of these arrays are legitimately empty on the ordinary path — no
+# `file`, none of `workdir`/`entrypoint`/`environment`/`volumes`, a Compose
+# advertising none of the optional flags — so plain expansions make the plugin
+# unusable on bash 3.2 (what macOS ships) and 4.2 (Amazon Linux 2, CentOS 7).
+# `${arr[@]+...}` substitutes only when the array is set, which every bash since
+# 3.x handles.
+#
+# Applied to every array expansion in this hook, including ones that cannot be
+# empty today, so no later edit has to re-derive which is which. It does not
+# change the emitted argv: the inner quotes keep each element exactly one word,
+# elements containing spaces or newlines included.
 FILE_ARGS=()
 if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE"; then
-  for f in "${result[@]}"; do
+  for f in "${result[@]+"${result[@]}"}"; do
     FILE_ARGS+=(-f "$f")
   done
 fi
@@ -48,7 +62,7 @@ fi
 if [[ "$PULL_SUPPORTS_INCLUDE_DEPS" == "true" ]]; then
   echo "--- :docker: pulling"
   set -x
-  docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" pull --include-deps "$SERVICE"
+  docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" pull --include-deps "$SERVICE"
   { set +x; } 2>/dev/null
 fi
 
@@ -74,7 +88,7 @@ fi
 # dependency tree becoming healthy.
 echo "--- :docker: upping"
 set -x
-docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" up --detach "${UP_PRELOADED_ARGS[@]}" --scale "${SERVICE}=0" "$SERVICE"
+docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" up --detach "${UP_PRELOADED_ARGS[@]+"${UP_PRELOADED_ARGS[@]}"}" --scale "${SERVICE}=0" "$SERVICE"
 { set +x; } 2>/dev/null
 
 echo "+++ :docker: running"
@@ -90,7 +104,7 @@ if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENTRYPOINT+set}" == "set" ]]; then
 fi
 
 if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT"; then
-  for e in "${result[@]}"; do
+  for e in "${result[@]+"${result[@]}"}"; do
     RUN_ARGS+=(-e "$e")
   done
 fi
@@ -119,7 +133,7 @@ if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_BUILDKITE_ENVIRONMENT:-fa
 fi
 
 if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_VOLUMES"; then
-  for v in "${result[@]}"; do
+  for v in "${result[@]+"${result[@]}"}"; do
     if [[ "$v" == *:* ]]; then
       host="${v%%:*}"
       rest="${v#*:}"
@@ -138,7 +152,7 @@ if [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND:-}" && -z "${BUILDKITE_P
 fi
 CMD_ITEMS=()
 if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND"; then
-  CMD_ITEMS=("${result[@]}")
+  CMD_ITEMS=("${result[@]+"${result[@]}"}")
 fi
 has_step_commands=false
 [[ -n "${BUILDKITE_COMMAND:-}" ]] && has_step_commands=true
@@ -168,7 +182,7 @@ if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" =~ ^(false|off|0)$ ]]; th
   shell_disabled=true
 elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL_0:-}" ]]; then
   plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL"
-  SHELL_ARGS=("${result[@]}")
+  SHELL_ARGS=("${result[@]+"${result[@]}"}")
   shell_disabled=false
 elif [[ -n "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL:-}" ]]; then
   echo "+++ Error: The shell option must be an array or false, not a string."
@@ -187,21 +201,21 @@ CMD_ARGS=()
 # shell here and the container fails; this is a deliberate divergence.
 if [[ "$has_step_commands" == "true" || "$has_plugin_commands" == "true" ]]; then
   if [[ "$shell_disabled" == "false" ]]; then
-    CMD_ARGS+=("${SHELL_ARGS[@]}")
+    CMD_ARGS+=("${SHELL_ARGS[@]+"${SHELL_ARGS[@]}"}")
   fi
 fi
 
 if [[ "$has_step_commands" == "true" ]]; then
   CMD_ARGS+=("$BUILDKITE_COMMAND")
 elif [[ "$has_plugin_commands" == "true" ]]; then
-  CMD_ARGS+=("${CMD_ITEMS[@]}")
+  CMD_ARGS+=("${CMD_ITEMS[@]+"${CMD_ITEMS[@]}"}")
 fi
 
 set -x
-docker compose "${COMPOSE_PROGRESS_ARGS[@]}" -p "$PROJECT" "${FILE_ARGS[@]}" run \
-  "${RUN_PRELOADED_ARGS[@]}" \
+docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" run \
+  "${RUN_PRELOADED_ARGS[@]+"${RUN_PRELOADED_ARGS[@]}"}" \
   --rm \
-  "${RUN_ARGS[@]}" \
+  "${RUN_ARGS[@]+"${RUN_ARGS[@]}"}" \
   "$SERVICE" \
-  "${CMD_ARGS[@]}"
+  "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}"
 { set +x; } 2>/dev/null

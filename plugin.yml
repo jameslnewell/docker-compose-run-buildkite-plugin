@@ -3,6 +3,7 @@ description: Run a docker compose service with phase-level timing and automatic 
 author: https://github.com/jameslnewell
 requirements:
   - docker
+  - bash >= 3.2
 configuration:
   properties:
     file:

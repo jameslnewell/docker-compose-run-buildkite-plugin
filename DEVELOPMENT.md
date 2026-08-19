@@ -61,6 +61,23 @@ Integration tests (requires Docker and Docker Compose):
 bats tests/integration.bats
 ```
 
+### Old-bash tests
+
+The plugin supports bash 3.2 and newer, which is why the hooks guard every array
+expansion as `"${arr[@]+"${arr[@]}"}"` (see [`CLAUDE.md`](./CLAUDE.md)). The plain
+`"${arr[@]}"` form works fine on the modern bash that `buildkite/plugin-tester`
+ships, so the main suite cannot catch a regression there — only running the hooks
+on an old bash can.
+
+`tests/old-bash.bats` runs them inside real `bash:3.2` and `bash:4.2` containers
+with a stubbed `docker` on `PATH`, and compares the argv against a modern bash.
+Those tests skip wherever the `docker` CLI is missing, which includes CI, so run
+them on a host with Docker:
+
+```bash
+bats tests/old-bash.bats
+```
+
 ## Releasing
 
 1. Merge all changes to `main`
