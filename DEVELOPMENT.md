@@ -58,8 +58,17 @@ PATH="$(brew --prefix)/bin:$PATH" BATS_LIB_PATH="$(brew --prefix)/lib" bats test
 Integration tests (requires Docker and Docker Compose):
 
 ```bash
-bats tests/integration.bats
+PATH="$(brew --prefix)/bin:$PATH" BATS_LIB_PATH="$(brew --prefix)/lib" bats tests/integration.bats
 ```
+
+> **Keep the `PATH` prefix on macOS — it is not just for finding bats.** Under the
+> system bash (3.2), bats does not abort a test at the first failed assertion: only
+> the last command in the test body decides the result, so a test can report `ok`
+> while an assertion in the middle of it failed. The same test file, same bats, on
+> bash 5.2 fails as it should. The plugin supports bash 3.2 — that is what
+> `tests/old-bash.bats` verifies — but the *test runner* needs a newer one, so a
+> local pass under `/bin/bash` does not mean much. `buildkite/plugin-tester` ships
+> its own bash and is unaffected.
 
 ### Old-bash tests
 
@@ -90,10 +99,10 @@ CI covers both: `.github/workflows/test.yml` runs the suite in `plugin-tester`
 every test executes. That second job fails if any test reports a skip.
 
 To run everything locally you need bats and its helper libraries on the host
-rather than in the image:
+rather than in the image (and, on macOS, a non-system bash — see the warning above):
 
 ```bash
-bats tests/
+PATH="$(brew --prefix)/bin:$PATH" BATS_LIB_PATH="$(brew --prefix)/lib" bats tests/
 ```
 
 ## Releasing
