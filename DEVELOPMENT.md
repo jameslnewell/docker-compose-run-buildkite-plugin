@@ -71,11 +71,29 @@ on an old bash can.
 
 `tests/old-bash.bats` runs them inside real `bash:3.2` and `bash:4.2` containers
 with a stubbed `docker` on `PATH`, and compares the argv against a modern bash.
-Those tests skip wherever the `docker` CLI is missing, which includes CI, so run
-them on a host with Docker:
+They need a `docker` CLI, so they skip inside `buildkite/plugin-tester`. Run them
+on a host with Docker:
 
 ```bash
 bats tests/old-bash.bats
+```
+
+### What runs where
+
+`buildkite/plugin-tester` has no `docker` CLI, so `tests/integration.bats` and
+`tests/old-bash.bats` skip in it — which is why running only that image is not
+enough to know the suite passed.
+
+CI covers both: `.github/workflows/test.yml` runs the suite in `plugin-tester`
+(keeping that path honest, since it is what this guide tells you to use locally)
+*and* runs it natively on the runner, where a `docker` CLI and daemon exist, so
+every test executes. That second job fails if any test reports a skip.
+
+To run everything locally you need bats and its helper libraries on the host
+rather than in the image:
+
+```bash
+bats tests/
 ```
 
 ## Releasing

@@ -55,11 +55,16 @@ EOF
 
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENV_0="TEST_VAR=success"
+  # ENVIRONMENT, not ENV: the plugin option is `environment`, so the variable this
+  # test used to set was one no hook has ever read. It asserted only that the hook
+  # exited 0, which it would have done with no variable passed at all.
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT_0="TEST_VAR=success"
 
   run bash "$PLUGIN_PATH/hooks/command"
 
   [[ $status -eq 0 ]]
+  # The service echoes $TEST_VAR, so the value only appears if it reached the container.
+  [[ "$output" == *"success"* ]]
 }
 
 @test "integration: respects working directory" {

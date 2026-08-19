@@ -6,6 +6,11 @@
 docker run --rm -v "$PWD:/plugin:ro" buildkite/plugin-tester
 ```
 
+That image has no `docker` CLI, so `tests/integration.bats` and
+`tests/old-bash.bats` skip in it. CI runs those for real in a second job that
+executes the suite natively on the runner, and fails if any test skips there —
+see `.github/workflows/test.yml` and [DEVELOPMENT.md](./DEVELOPMENT.md).
+
 ## Testing with bats-mock
 
 Stub patterns are parsed via `eval "parsed_patterns=(...)"`, so any argument
@@ -87,6 +92,7 @@ before changing it:
   nothing but tidier expansions.
 
 `buildkite/plugin-tester` ships a modern bash, where the plain form works fine, so
-the main suite cannot catch a regression here. `tests/old-bash.bats` runs the hooks
-under real `bash:3.2` and `bash:4.2` containers; those tests skip when the `docker`
-CLI is absent, which includes CI. Run them on a host with Docker.
+no test running in that image can catch a regression here. `tests/old-bash.bats`
+runs the hooks under real `bash:3.2` and `bash:4.2` containers instead. It needs a
+`docker` CLI, so it skips inside `plugin-tester` but runs in CI's `full-suite` job
+and on any host with Docker.
