@@ -9,8 +9,9 @@
 # "${arr[@]+"${arr[@]}"}" expansions in the hooks back to the plain form. Only
 # running the hooks on an actual old bash catches it, which is what this file does.
 #
-# It needs a real docker CLI to run the bash images, and the plugin-tester image
-# has none, so every test here skips in CI. Run them on a host with Docker:
+# It needs a real docker CLI to run the bash images. The plugin-tester image has
+# none, so these skip there; CI's full-suite job runs the suite natively on the
+# runner, where they do run. Locally, on a host with Docker:
 #
 #   bats tests/old-bash.bats
 #

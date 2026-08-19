@@ -1,9 +1,66 @@
 name: Test
 on: [push, pull_request]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # The default shell for `run` is `bash -e`, without pipefail — which would hide a
+    # failing `bats` whose output is piped into `tee` below.
+    shell: bash
+
 jobs:
-  test:
+  # The environment contributors run the suite in locally (see DEVELOPMENT.md), kept
+  # in CI so a breakage specific to it does not go unnoticed. The image has no docker
+  # CLI, so the tests needing one skip here; the `full-suite` job runs those for real.
+  plugin-tester:
+    name: plugin-tester image
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run plugin tests
+
+      - name: Run the suite in buildkite/plugin-tester
         run: docker run --rm -v "$PWD:/plugin:ro" buildkite/plugin-tester
+
+  # The runner has both a docker CLI and a daemon, so every test actually executes
+  # here: tests/integration.bats against a real daemon, and tests/old-bash.bats in
+  # real bash:3.2 and bash:4.2 containers. Neither can run inside plugin-tester.
+  full-suite:
+    name: full suite (with Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Lifted out of the same image the other job uses rather than installed from
+      # upstream, because the suite depends on Buildkite's fork of bats-mock — it
+      # keys its stub directory off BATS_TEST_TMPDIR where jasonkarns/bats-mock uses
+      # BATS_TMPDIR, so the upstream library silently fails to intercept `docker` and
+      # the hooks run unstubbed. Taking the whole toolchain from the image also means
+      # the two jobs cannot drift apart, and there are no versions to keep in step.
+      - name: Install bats and helper libraries from the plugin-tester image
+        run: |
+          container="$(docker create buildkite/plugin-tester)"
+          docker cp "${container}:/usr/lib/bats" "$RUNNER_TEMP/bats-libs"
+          docker cp "${container}:/opt/bats" "$RUNNER_TEMP/bats-core"
+          docker rm "${container}" > /dev/null
+
+          # /usr/lib/bats is the directory bats defaults BATS_LIB_PATH to, so the
+          # tests resolve `load` the same way here as they do inside the image.
+          sudo mv "$RUNNER_TEMP/bats-libs" /usr/lib/bats
+          sudo mv "$RUNNER_TEMP/bats-core" /opt/bats
+          sudo ln -sf /opt/bats/bin/bats /usr/local/bin/bats
+          bats --version
+
+      - name: Run every test
+        run: bats --print-output-on-failure --formatter tap tests/ | tee "$RUNNER_TEMP/results.tap"
+
+      - name: Fail if any test skipped
+        run: |
+          # A skip in this job means a test quietly stopped running, which is the
+          # failure this job exists to prevent: tests/integration.bats reported green
+          # for its entire life by skipping in the only place it was ever run.
+          if grep -iE '^ok .*# skip' "$RUNNER_TEMP/results.tap"; then
+            echo "::error::Tests skipped in the job that is meant to run all of them (listed above)"
+            exit 1
+          fi
