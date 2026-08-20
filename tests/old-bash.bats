@@ -9,8 +9,9 @@
 # "${arr[@]+"${arr[@]}"}" expansions in the hooks back to the plain form. Only
 # running the hooks on an actual old bash catches it, which is what this file does.
 #
-# It needs a real docker CLI to run the bash images, and the plugin-tester image
-# has none, so every test here skips in CI. Run them on a host with Docker:
+# It needs a real docker CLI to run the bash images. The plugin-tester image has
+# none, so these skip there; CI's full-suite job runs the suite natively on the
+# runner, where they do run. Locally, on a host with Docker:
 #
 #   bats tests/old-bash.bats
 #
@@ -66,6 +67,17 @@ skip_unless_docker() {
   fi
 }
 
+# `docker run` writes pull progress to stderr, and bats merges stderr into $output.
+# That progress differs from one image to the next, so on a machine seeing these
+# images for the first time it lands inside the argv comparison below and fails it.
+# Pull out of band instead — anything run before `run` is not captured.
+ensure_image() {
+  local image="$1"
+  if ! docker image inspect "$image" > /dev/null 2>&1; then
+    docker pull --quiet "$image" > /dev/null
+  fi
+}
+
 # Runs one hook inside `bash:<version>` with docker and buildkite-agent stubbed.
 # Extra KEY=VALUE arguments are exported into the container. `redirect` is
 # appended to the hook invocation: pass 2>/dev/null to drop the `set -x` trace
@@ -80,6 +92,8 @@ run_hook_on_bash() {
   for pair in "$@"; do
     env_args+=(-e "$pair")
   done
+
+  ensure_image "bash:${version}"
 
   # The same idiom the hooks use, and for the same reason: this file has to run on
   # the host's bash, which on macOS is 3.2, and env_args is empty in most tests.
@@ -167,7 +181,7 @@ line script'"
   run_hook_on_bash "5.2" command "2>/dev/null" "${options[@]}"
   assert_success
 
-  [[ "$output" == "$old_output" ]]
+  assert_equal "$output" "$old_output"
   # Prove the comparison was not vacuous, and that the multi-line item stayed one
   # argument rather than being split into three.
   assert_line "ARG=<--workdir>"
