@@ -10,21 +10,27 @@ PS4=''
 
 PROJECT="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
 
+# "${arr[@]+"${arr[@]}"}" rather than "${arr[@]}" so an empty array expands to
+# nothing under `set -u` on bash before 4.4 as well — see hooks/command for the
+# full reasoning. It matters more here than there: the first expansion below sits
+# in a pipeline, so on old bash `set -u` only killed that subshell and the hook
+# carried on, writing the error text into the log file it then uploaded as an
+# artifact. A green build, with the service logs silently replaced.
 FILE_ARGS=()
 if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE"; then
-  for f in "${result[@]}"; do
+  for f in "${result[@]+"${result[@]}"}"; do
     FILE_ARGS+=(-f "$f")
   done
 fi
 
 echo "~~~ :docker: logging"
 set -x
-docker compose -p "$PROJECT" "${FILE_ARGS[@]}" logs --timestamps 2>&1 \
+docker compose -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" logs --timestamps 2>&1 \
   | sort > docker-compose-run-buildkite-plugin.log || true
 { set +x; } 2>/dev/null
 buildkite-agent artifact upload docker-compose-run-buildkite-plugin.log || true
 
 echo "~~~ :docker: downing"
 set -x
-docker compose -p "$PROJECT" "${FILE_ARGS[@]}" down --volumes --remove-orphans || true
+docker compose -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" down --volumes --remove-orphans || true
 { set +x; } 2>/dev/null

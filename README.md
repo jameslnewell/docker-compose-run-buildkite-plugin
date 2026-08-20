@@ -8,6 +8,7 @@ Each phase (pull, up, run) is a separate log group in Buildkite, so it's easy to
 
 - The `docker` CLI with the Compose v2 plugin (`docker compose`) available to the Buildkite agent. Flags that vary across Compose versions (`pull --include-deps`, `up --pull`, `run --pull`, `--progress`) are feature-detected, and the plugin degrades gracefully when they're missing.
 - The `buildkite-agent` CLI on `PATH`, used to upload the service logs during cleanup.
+- **Bash 3.2 or newer** on the agent. That covers every bash still in use — macOS ships 3.2, and Amazon Linux 2 and CentOS 7 ship 4.2 — so no agent should need a bash upgrade to run this plugin.
 
 ## Usage
 

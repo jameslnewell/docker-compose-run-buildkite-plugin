@@ -561,3 +561,29 @@ teardown() {
   assert_output --partial "-e BUILDKITE_MESSAGE"
   refute_output --partial "BUILDKITE_NOT_A_VAR"
 }
+
+@test "Emits the bare run argv when no optional config is set" {
+  # Every array the hook expands is empty here: no file, no workdir, entrypoint,
+  # environment or volumes, no step or plugin command, and a compose that advertises
+  # none of the optional flags. That is the shape the guarded array expansions exist
+  # for. This suite runs on a modern bash, where the plain expansions would pass too,
+  # so this test pins the argv rather than the bash floor — tests/old-bash.bats runs
+  # the same path on bash 3.2. Every docker call is stubbed exactly, so a stray
+  # argument fails the test.
+  unset BUILDKITE_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
+  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --rm test-service : true"
+
+  run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
+
+  assert_success
+  assert_line "docker compose -p docker-compose-run-buildkite-plugin-test-job-id run --rm test-service"
+}
