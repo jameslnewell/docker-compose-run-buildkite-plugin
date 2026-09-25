@@ -34,6 +34,9 @@ configuration:
     volumes:
       type: array
       description: "Volume mounts as host:container. Host paths of . or starting with ./ are resolved against pwd."
+    rm:
+      type: boolean
+      description: "Remove the run container when the command exits (--rm). Set to false to keep the stopped container, named docker-compose-run-buildkite-plugin-<job id>, until pre-exit, so a post-command hook can docker cp out of it."
     propagate-aws:
       type: boolean
       description: "Propagate AWS credential and region env vars (AWS_REGION, AWS_DEFAULT_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN)"

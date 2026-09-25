@@ -116,7 +116,7 @@ run_hook_on_bash() {
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service"
-  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --rm test-service"
+  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service"
 }
 
 @test "command hook emits the bare run argv on bash 4.2" {
@@ -128,7 +128,7 @@ run_hook_on_bash() {
 
   assert_success
   refute_output --partial "unbound variable"
-  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --rm test-service"
+  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service"
 }
 
 @test "pre-exit hook does not poison the uploaded log on the oldest supported bash" {
@@ -143,6 +143,7 @@ run_hook_on_bash() {
 
   assert_success
   refute_output --partial "unbound variable"
+  assert_line "DOCKER: rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans"
   assert_line "AGENT: artifact upload docker-compose-run-buildkite-plugin.log"
 }

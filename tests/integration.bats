@@ -20,7 +20,34 @@ EOF
 teardown() {
   cd /
   rm -rf "$TEST_TMPDIR"
-  docker compose -p "docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}" down --volumes --remove-orphans 2>/dev/null || true
+  remove_job "${BUILDKITE_JOB_ID}"
+  remove_job "${BUILDKITE_JOB_ID}-a"
+  remove_job "${BUILDKITE_JOB_ID}-b"
+}
+
+# What pre-exit does, for when a test fails before getting that far.
+remove_job() {
+  docker rm --force --volumes "docker-compose-run-buildkite-plugin-$1" >/dev/null 2>&1 || true
+  docker compose -p "docker-compose-run-buildkite-plugin-$1" down --volumes --remove-orphans 2>/dev/null || true
+}
+
+# A dependency for `up` to start, and a service that writes a report and fails,
+# the way a test run leaves coverage behind. /scratch is an anonymous volume,
+# which `run --rm` removes and `down --volumes` does not.
+write_report_compose_file() {
+  cat > "$TEST_TMPDIR/docker-compose.yml" <<'EOF'
+services:
+  dep:
+    image: busybox:latest
+    command: sleep 300
+    stop_grace_period: 1s
+  test:
+    image: busybox:latest
+    depends_on: [dep]
+    volumes:
+      - /scratch
+    command: sh -c 'mkdir -p /out && echo "report $${REPORT:-}" > /out/report.txt && exit 3'
+EOF
 }
 
 skip_if_no_docker() {
@@ -124,4 +151,87 @@ EOF
   run bash "$PLUGIN_PATH/hooks/command"
 
   [[ $status -eq 0 ]]
+}
+
+@test "integration: removes the run container when the command exits by default" {
+  skip_if_no_docker
+  write_report_compose_file
+
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
+
+  run bash "$PLUGIN_PATH/hooks/command"
+
+  [[ $status -eq 3 ]]
+  run docker container inspect "docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
+  [[ $status -ne 0 ]]
+}
+
+@test "integration: rm false keeps the stopped run container for post-command until pre-exit" {
+  skip_if_no_docker
+  write_report_compose_file
+
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=false
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT_0="REPORT=kept"
+  local container="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
+
+  run bash "$PLUGIN_PATH/hooks/command"
+  [[ $status -eq 3 ]]
+
+  # What a post-command hook does.
+  docker cp "${container}:/out/report.txt" "$TEST_TMPDIR/report.txt"
+  [[ "$(cat "$TEST_TMPDIR/report.txt")" == "report kept" ]]
+
+  local volume
+  volume="$(docker container inspect --format '{{range .Mounts}}{{if eq .Destination "/scratch"}}{{.Name}}{{end}}{{end}}' "$container")"
+  [[ -n "$volume" ]]
+
+  bash "$PLUGIN_PATH/hooks/pre-exit"
+
+  run docker container inspect "$container"
+  [[ $status -ne 0 ]]
+  run docker volume inspect "$volume"
+  [[ $status -ne 0 ]]
+}
+
+@test "integration: parallel jobs on one daemon keep separate run containers" {
+  skip_if_no_docker
+  write_report_compose_file
+
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=false
+  local job_a="${BUILDKITE_JOB_ID}-a" job_b="${BUILDKITE_JOB_ID}-b"
+
+  # The shards of a parallel step are separate jobs, so each has its own job id.
+  BUILDKITE_JOB_ID="$job_a" BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT_0="REPORT=a" \
+    bash "$PLUGIN_PATH/hooks/command" > "$TEST_TMPDIR/a.log" 2>&1 &
+  local pid_a=$!
+  BUILDKITE_JOB_ID="$job_b" BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT_0="REPORT=b" \
+    bash "$PLUGIN_PATH/hooks/command" > "$TEST_TMPDIR/b.log" 2>&1 &
+  local pid_b=$!
+  local status_a=0 status_b=0
+  wait "$pid_a" || status_a=$?
+  wait "$pid_b" || status_b=$?
+  [[ $status_a -eq 3 ]]
+  [[ $status_b -eq 3 ]]
+
+  docker cp "docker-compose-run-buildkite-plugin-${job_a}:/out/report.txt" "$TEST_TMPDIR/a.txt"
+  docker cp "docker-compose-run-buildkite-plugin-${job_b}:/out/report.txt" "$TEST_TMPDIR/b.txt"
+  [[ "$(cat "$TEST_TMPDIR/a.txt")" == "report a" ]]
+  [[ "$(cat "$TEST_TMPDIR/b.txt")" == "report b" ]]
+
+  BUILDKITE_JOB_ID="$job_a" bash "$PLUGIN_PATH/hooks/pre-exit"
+
+  run docker container inspect "docker-compose-run-buildkite-plugin-${job_a}"
+  [[ $status -ne 0 ]]
+  run docker container inspect "docker-compose-run-buildkite-plugin-${job_b}"
+  [[ $status -eq 0 ]]
+
+  BUILDKITE_JOB_ID="$job_b" bash "$PLUGIN_PATH/hooks/pre-exit"
+
+  run docker container inspect "docker-compose-run-buildkite-plugin-${job_b}"
+  [[ $status -ne 0 ]]
 }

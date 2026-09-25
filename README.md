@@ -90,6 +90,21 @@ steps:
           propagate-buildkite-environment: true
 ```
 
+Keep the stopped run container until the job ends, so a `post-command` hook can copy output out of it instead of the step mounting a directory into the container:
+
+```yaml
+steps:
+  - plugins:
+      - jameslnewell/docker-compose-run#v0.14.1:
+          service: test
+          rm: false
+```
+
+```bash
+# .buildkite/hooks/post-command
+docker cp "docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}:/app/coverage" coverage
+```
+
 ## Configuration
 
 | Option | Type | Default | Description |
@@ -102,6 +117,7 @@ steps:
 | `entrypoint` | string | the service's | Override the service's entrypoint. Any value — including `""` — suppresses the *default* shell wrapping; setting `shell` explicitly turns it back on. Matches the official `docker` plugin. Use `""` to clear an entrypoint while passing `command` args directly. |
 | `environment` | array | — | Environment variables as `KEY=VALUE`, passed as `-e`. |
 | `volumes` | array | — | Volume mounts as `host:container`, passed as `-v`. Host paths of `.` or beginning with `./` are resolved against `pwd`, so `./src:/app/src` mounts a directory from the checkout. |
+| `rm` | boolean | `true` | Remove the run container when the command exits, as `--rm`. Set to `false` to keep the stopped container, named `docker-compose-run-buildkite-plugin-<job id>`, until the `pre-exit` hook removes it, so a `post-command` hook can `docker cp` out of it. Matches the official `docker-compose` plugin's `rm`. |
 | `propagate-aws` | boolean | `false` | Propagate `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. |
 | `propagate-buildkite-environment` | boolean | `false` | Propagate `CI`, `BUILDKITE` and every `BUILDKITE_*` variable from the agent. |
 
@@ -133,8 +149,8 @@ Everything runs under a compose project named `docker-compose-run-buildkite-plug
 
 1. **Pull** — `docker compose pull --include-deps <service>` fetches only the target service and its dependency tree. Skipped on older Compose that lacks `--include-deps`.
 2. **Up** — `docker compose up --detach --scale <service>=0 <service>` brings up the target's `depends_on` tree without starting the target itself. `--pull never` is added when the pull phase already fetched the images.
-3. **Run** — `docker compose run --rm <service>` with the configured overrides, again adding `--pull never` when the images are already local.
-4. **Cleanup** — the `pre-exit` hook writes the project's logs to `docker-compose-run-buildkite-plugin.log`, uploads it as a Buildkite artifact, then runs `docker compose down --volumes --remove-orphans`.
+3. **Run** — `docker compose run --name docker-compose-run-buildkite-plugin-<job id> --rm <service>` with the configured overrides, again adding `--pull never` when the images are already local. `rm: false` drops `--rm`, so the stopped container outlives the command.
+4. **Cleanup** — the `pre-exit` hook writes the project's logs to `docker-compose-run-buildkite-plugin.log`, uploads it as a Buildkite artifact, removes the run container with its anonymous volumes (`docker compose down` removes the container but not those), then runs `docker compose down --volumes --remove-orphans`.
 
 Each phase is its own log group, so you can fold and expand them independently and see exactly where time is spent.
 

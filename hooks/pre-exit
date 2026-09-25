@@ -9,6 +9,7 @@ source "${DIR}/../lib/shared.bash"
 PS4=''
 
 PROJECT="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
+CONTAINER="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
 
 # "${arr[@]+"${arr[@]}"}" rather than "${arr[@]}" so an empty array expands to
 # nothing under `set -u` on bash before 4.4 as well — see hooks/command for the
@@ -32,5 +33,8 @@ buildkite-agent artifact upload docker-compose-run-buildkite-plugin.log || true
 
 echo "~~~ :docker: downing"
 set -x
+# `down` removes a run container kept by `rm: false`, but not its anonymous
+# volumes, which `run --rm` would have removed. Already gone with `rm: true`.
+docker rm --force --volumes "$CONTAINER" 2>/dev/null || true
 docker compose -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" down --volumes --remove-orphans || true
 { set +x; } 2>/dev/null
