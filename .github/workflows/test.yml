@@ -18,7 +18,7 @@ jobs:
     name: plugin-tester image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run the suite in buildkite/plugin-tester
         run: docker run --rm -v "$PWD:/plugin:ro" buildkite/plugin-tester
@@ -30,7 +30,7 @@ jobs:
     name: full suite (with Docker)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Lifted out of the same image the other job uses rather than installed from
       # upstream, because the suite depends on Buildkite's fork of bats-mock — it
