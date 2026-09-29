@@ -42,9 +42,9 @@ teardown() {
 }
 
 @test "Removes the run container and its anonymous volumes before downing the project" {
-  # `down --volumes` removes a kept run container but not its anonymous volumes,
-  # which `run --rm` would have removed. The stubs are ordered, so the rm has to
-  # come before the down.
+  # Without `-f`, `down --volumes` removes a kept run container but not its
+  # anonymous volumes, which `run --rm` would have removed. The stubs are
+  # ordered, so the rm has to come before the down.
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id logs --timestamps : true" \
     "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true" \

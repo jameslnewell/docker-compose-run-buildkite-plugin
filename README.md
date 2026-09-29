@@ -150,7 +150,7 @@ Everything runs under a compose project named `docker-compose-run-buildkite-plug
 1. **Pull** — `docker compose pull --include-deps <service>` fetches only the target service and its dependency tree. Skipped on older Compose that lacks `--include-deps`.
 2. **Up** — `docker compose up --detach --scale <service>=0 <service>` brings up the target's `depends_on` tree without starting the target itself. `--pull never` is added when the pull phase already fetched the images.
 3. **Run** — `docker compose run --name docker-compose-run-buildkite-plugin-<job id> --rm <service>` with the configured overrides, again adding `--pull never` when the images are already local. `rm: false` drops `--rm`, so the stopped container outlives the command.
-4. **Cleanup** — the `pre-exit` hook writes the project's logs to `docker-compose-run-buildkite-plugin.log`, uploads it as a Buildkite artifact, removes the run container with its anonymous volumes (`docker compose down` removes the container but not those), then runs `docker compose down --volumes --remove-orphans`.
+4. **Cleanup** — the `pre-exit` hook writes the project's logs to `docker-compose-run-buildkite-plugin.log`, uploads it as a Buildkite artifact, removes the run container with its anonymous volumes (`docker compose down` removes the container, but leaves those when no `file` is given), then runs `docker compose down --volumes --remove-orphans`.
 
 Each phase is its own log group, so you can fold and expand them independently and see exactly where time is spent.
 

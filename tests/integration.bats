@@ -33,7 +33,7 @@ remove_job() {
 
 # A dependency for `up` to start, and a service that writes a report and fails,
 # the way a test run leaves coverage behind. /scratch is an anonymous volume,
-# which `run --rm` removes and `down --volumes` does not.
+# which `run --rm` removes and `down --volumes` may not.
 write_report_compose_file() {
   cat > "$TEST_TMPDIR/docker-compose.yml" <<'EOF'
 services:
@@ -171,8 +171,10 @@ EOF
   skip_if_no_docker
   write_report_compose_file
 
+  # No `file`: Compose finds docker-compose.yml in the working directory. Given
+  # the file with `-f`, `down --volumes` removes the anonymous volume itself, so
+  # this test could not tell whether pre-exit's own removal ran.
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=false
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT_0="REPORT=kept"
   local container="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
