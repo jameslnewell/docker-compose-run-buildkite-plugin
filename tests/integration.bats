@@ -222,6 +222,8 @@ EOF
   local status_a=0 status_b=0
   wait "$pid_a" || status_a=$?
   wait "$pid_b" || status_b=$?
+  # teardown deletes these, and bats prints a test's output only when it fails
+  cat "$TEST_TMPDIR/a.log" "$TEST_TMPDIR/b.log"
   [[ $status_a -eq 3 ]]
   [[ $status_b -eq 3 ]]
 
