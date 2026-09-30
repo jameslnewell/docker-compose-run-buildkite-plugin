@@ -100,9 +100,14 @@ steps:
           rm: false
 ```
 
+A repository hook runs for every job in the pipeline, so guard it on the container existing. Otherwise it fails steps that don't use this plugin, that keep the default `rm: true`, or that failed before the run started:
+
 ```bash
 # .buildkite/hooks/post-command
-docker cp "docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}:/app/coverage" coverage
+container="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
+if docker container inspect "$container" >/dev/null 2>&1; then
+  docker cp "${container}:/app/coverage" coverage
+fi
 ```
 
 ## Configuration
