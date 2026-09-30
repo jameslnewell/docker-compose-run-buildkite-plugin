@@ -100,6 +100,8 @@ steps:
           rm: false
 ```
 
+`rm` is newer than `v0.15.0`, so pin a release that includes it. An older release still removes the container at exit, and the guard below then skips the copy without failing the step.
+
 A repository hook runs for every job in the pipeline, so guard it on the container existing. Otherwise it fails steps that don't use this plugin, that keep the default `rm: true`, or that failed before the run started:
 
 ```bash
