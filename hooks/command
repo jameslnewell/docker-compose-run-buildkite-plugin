@@ -16,6 +16,9 @@ PS4=''
 
 SERVICE="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE}"
 PROJECT="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
+# Named the way the docker-run plugin names its container, so a post-command hook
+# can find it. pre-exit removes it by this name.
+CONTAINER="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
 
 # Array expansions here are written "${arr[@]+"${arr[@]}"}" rather than plain
 # "${arr[@]}". Under `set -u` bash only expands an empty array to nothing from 4.4
@@ -92,6 +95,13 @@ docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$
 { set +x; } 2>/dev/null
 
 echo "+++ :docker: running"
+
+# `rm: false` keeps the stopped run container until pre-exit, so a post-command
+# hook can `docker cp` output out of it — the lifetime docker-run gives its own.
+RM_ARGS=()
+if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM:-true}" == "true" ]]; then
+  RM_ARGS=(--rm)
+fi
 
 RUN_ARGS=()
 workdir="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_WORKDIR:-}"
@@ -214,7 +224,8 @@ fi
 set -x
 docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" run \
   "${RUN_PRELOADED_ARGS[@]+"${RUN_PRELOADED_ARGS[@]}"}" \
-  --rm \
+  --name "$CONTAINER" \
+  "${RM_ARGS[@]+"${RM_ARGS[@]}"}" \
   "${RUN_ARGS[@]+"${RUN_ARGS[@]}"}" \
   "$SERVICE" \
   "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}"
