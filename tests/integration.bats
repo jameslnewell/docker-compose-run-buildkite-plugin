@@ -163,8 +163,13 @@ EOF
   run bash "$PLUGIN_PATH/hooks/command"
 
   [[ $status -eq 3 ]]
-  run docker container inspect "docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
-  [[ $status -ne 0 ]]
+  # By label rather than by name, so a run container left behind under any name
+  # fails the test.
+  run docker ps --all --quiet \
+    --filter "label=com.docker.compose.project=docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}" \
+    --filter "label=com.docker.compose.oneoff=True"
+  [[ $status -eq 0 ]]
+  [[ -z "$output" ]]
 }
 
 @test "integration: rm false keeps the stopped run container for post-command until pre-exit" {
