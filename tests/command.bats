@@ -609,7 +609,6 @@ teardown() {
   run "$PLUGIN_PATH/hooks/command"
 
   assert_failure 3
-  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM
 }
 
 @test "Removes the run container when rm is true" {
@@ -629,5 +628,4 @@ teardown() {
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
-  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM
 }
