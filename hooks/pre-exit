@@ -35,7 +35,10 @@ echo "~~~ :docker: downing"
 set -x
 # `down` removes a run container kept by `rm: false`, but without `-f` it leaves
 # the container's anonymous volumes, which `run --rm` would have removed.
-# Already gone with `rm: true`.
-docker rm --force --volumes "$CONTAINER" 2>/dev/null || true
+# Already gone with `rm: true`, so check first rather than silence the rm: a
+# kept container that can't be removed has to show in the log.
+if docker container inspect "$CONTAINER" >/dev/null 2>&1; then
+  docker rm --force --volumes "$CONTAINER" || true
+fi
 docker compose -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" down --volumes --remove-orphans || true
 { set +x; } 2>/dev/null

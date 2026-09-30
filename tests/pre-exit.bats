@@ -47,6 +47,7 @@ teardown() {
   # ordered, so the rm has to come before the down.
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id logs --timestamps : true" \
+    "container inspect docker-compose-run-buildkite-plugin-test-job-id : true" \
     "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
   stub buildkite-agent \
@@ -62,10 +63,11 @@ teardown() {
 }
 
 @test "Still downs the project when there is no run container to remove" {
-  # With `rm: true` the container is already gone by pre-exit.
+  # With `rm: true` the container is already gone by pre-exit, so there is no
+  # rm in the plan.
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id logs --timestamps : true" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : echo 'No such container' >&2; exit 1" \
+    "container inspect docker-compose-run-buildkite-plugin-test-job-id : echo 'No such container' >&2; exit 1" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
   stub buildkite-agent \
     "artifact upload docker-compose-run-buildkite-plugin.log : true"
@@ -73,6 +75,29 @@ teardown() {
   run "$PLUGIN_PATH/hooks/pre-exit"
 
   assert_success
+  refute_output --partial "No such container"
+  # Every docker call in the hook ends in `|| true`, so a call the plan did not
+  # expect still leaves the hook green. unstub is what checks the plan was followed.
+  unstub docker
+  unstub buildkite-agent
+}
+
+@test "Shows a failure to remove the run container and still downs the project" {
+  # A kept container that can't be removed leaves its anonymous volumes behind
+  # after the down, so the error has to reach the log. It must not fail the
+  # job, whose outcome is already decided.
+  stub docker \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id logs --timestamps : true" \
+    "container inspect docker-compose-run-buildkite-plugin-test-job-id : true" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : echo 'volume is in use' >&2; exit 1" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id down --volumes --remove-orphans : true"
+  stub buildkite-agent \
+    "artifact upload docker-compose-run-buildkite-plugin.log : true"
+
+  run "$PLUGIN_PATH/hooks/pre-exit"
+
+  assert_success
+  assert_output --partial "volume is in use"
   # Every docker call in the hook ends in `|| true`, so a call the plan did not
   # expect still leaves the hook green. unstub is what checks the plan was followed.
   unstub docker
