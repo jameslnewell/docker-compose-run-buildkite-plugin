@@ -945,6 +945,28 @@ enter_job_directory() {
   unstub docker
 }
 
+@test "copy-out fails the hook when a command that passed left no container" {
+  # Nothing was copied, so the step must not pass as though it had been.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+  enter_job_directory
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo 'No such container' >&2; exit 1"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_failure 1
+  assert_output --partial "Error: there is no run container to copy out of"
+  unstub docker
+}
+
 # A copy-out entry the hook must refuse before it calls docker at all, so no
 # container exists yet. With docker unstubbed, a call would reach the real CLI,
 # or fail as "command not found" inside plugin-tester; either shows in the output.
