@@ -266,7 +266,7 @@ docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$
 # from v4, which would put this plugin's after an artifact upload listed below it.
 copy_failed=false
 if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
-  echo "--- :docker: copying"
+  echo "--- :docker: copying out"
   # A run that failed before creating its container left nothing to copy.
   if container_workdir="$(docker container inspect --format '{{.Config.WorkingDir}}' "$CONTAINER")"; then
     for entry in "${COPY_OUT[@]+"${COPY_OUT[@]}"}"; do
@@ -279,8 +279,12 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
 
       # `docker cp` can't be asked whether a path exists, and how it words a
       # missing one varies between Docker versions. Asking for the path as a tar
-      # stream answers it: a byte only arrives when the path is there.
-      if [[ -z "$(docker cp "${CONTAINER}:${from}" - 2>/dev/null | head -c 1)" ]]; then
+      # stream answers it: a byte only arrives when the path is there. None
+      # arrives from a container or a daemon that has gone either, so the
+      # container is checked before the path is called missing. If it has gone,
+      # the copy below fails with docker's own error.
+      if [[ -z "$(docker cp "${CONTAINER}:${from}" - 2>/dev/null | head -c 1)" ]] \
+        && docker container inspect "$CONTAINER" >/dev/null 2>&1; then
         echo "Skipped ${from}: not found in the run container"
         continue
       fi

@@ -660,6 +660,7 @@ enter_job_directory() {
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
+  assert_line -- "--- :docker: copying out"
   assert_equal "$(cat backend/coverage/report.txt)" "copied"
   # The removal ends in `|| true`, so only unstub shows the plan was followed.
   unstub docker
@@ -821,7 +822,8 @@ enter_job_directory() {
 
 @test "copy-out skips a from that does not exist" {
   # Asking for a missing path as a tar stream writes nothing to stdout, which is
-  # how the hook tells it apart from a copy that failed.
+  # how the hook tells it apart from a copy that failed. Nothing arrives from a
+  # container that has gone either, so the hook checks it is still there.
   unset BUILDKITE_COMMAND
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
   enter_job_directory
@@ -835,6 +837,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo 'Could not find the file' >&2; exit 1" \
+    "container inspect docker-compose-run-buildkite-plugin-test-job-id : true" \
     "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -842,6 +845,35 @@ enter_job_directory() {
   assert_success
   assert_output --partial "Skipped /app/coverage: not found in the run container"
   [[ ! -e coverage ]]
+  unstub docker
+}
+
+@test "copy-out does not take a container that has gone for a from that does not exist" {
+  # The tar stream is just as empty when the container, or the daemon, is no
+  # longer there. That is a failed copy, and docker's own error says why.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+  enter_job_directory
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo 'No such container' >&2; exit 1" \
+    "container inspect docker-compose-run-buildkite-plugin-test-job-id : echo 'No such container' >&2; exit 1" \
+    "cp docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : echo 'No such container' >&2; exit 1" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_failure 1
+  refute_output --partial "Skipped"
+  assert_output --partial "No such container"
+  assert_output --partial "Error: could not copy /app/coverage out of the run container"
   unstub docker
 }
 
