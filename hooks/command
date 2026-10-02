@@ -59,7 +59,7 @@ if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT"; 
     # name the working directory itself or anything outside it.
     if [[ -z "$to" || "$to" == /* || "/${to}/" == */./* || "/${to}/" == */../* ]]; then
       echo "+++ Error: The <to> of a copy-out entry must be a path inside the job's working directory. Got \"${entry}\"."
-      echo "The copy replaces whatever is at <to>, so it cannot be absolute, contain \"..\", or be the working directory itself."
+      echo "The copy replaces whatever is at <to>, so it cannot be absolute, have a \".\" or \"..\" component, or be the working directory itself."
       exit 1
     fi
     COPY_OUT+=("${entry%%:*}:${to}")

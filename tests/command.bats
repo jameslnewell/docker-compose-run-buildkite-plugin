@@ -1139,6 +1139,11 @@ assert_copy_out_rejected() {
   assert_copy_out_rejected "coverage:backend/../../coverage"
 }
 
+@test "copy-out rejects a to with a . component, and says so" {
+  assert_copy_out_rejected "coverage:backend/./coverage"
+  assert_line --partial 'have a "." or ".." component'
+}
+
 @test "copy-out rejects an absolute to" {
   assert_copy_out_rejected "coverage:/tmp/coverage"
 }
