@@ -1146,18 +1146,22 @@ enter_job_directory() {
 }
 
 # A copy-out entry the hook must refuse before it calls docker at all, so no
-# container exists yet. With docker unstubbed, a call would reach the real CLI,
-# or fail as "command not found" inside plugin-tester; either shows in the output.
+# container exists yet. The hook's first docker calls are `--help` probes piped
+# into `grep -q`, which print nothing either way, so the docker on PATH here
+# records that it was called.
 assert_copy_out_rejected() {
   unset BUILDKITE_COMMAND
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="$1"
   enter_job_directory
+  mkdir "$BATS_TEST_TMPDIR/shims"
+  printf '#!/bin/sh\ntouch "%s"\n' "$BATS_TEST_TMPDIR/docker-called" > "$BATS_TEST_TMPDIR/shims/docker"
+  chmod +x "$BATS_TEST_TMPDIR/shims/docker"
 
-  run "$PLUGIN_PATH/hooks/command"
+  run env PATH="$BATS_TEST_TMPDIR/shims:$PATH" "$PLUGIN_PATH/hooks/command"
 
   assert_failure 1
   assert_line --index 0 --partial "+++ Error: "
-  refute_output --partial "docker"
+  [[ ! -e "$BATS_TEST_TMPDIR/docker-called" ]]
 }
 
 @test "copy-out rejects an entry with no colon" {
