@@ -979,7 +979,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : echo 'no space left on device' >&2; exit 1" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo partial > \"\$4/report.txt\"; echo 'no space left on device' >&2; exit 1" \
     "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
 
   run "$PLUGIN_PATH/hooks/command"
@@ -987,7 +987,10 @@ enter_job_directory() {
   assert_failure 1
   assert_output --partial "no space left on device"
   assert_output --partial "Error: could not copy /app/coverage out of the run container"
+  # docker cp had written part of the copy when it failed. None of it reaches to.
+  assert_equal "$(ls -A coverage)" "earlier.txt"
   assert_equal "$(cat coverage/earlier.txt)" "earlier"
+  assert_equal "$(ls -A)" "coverage"
   unstub docker
 }
 
@@ -1066,6 +1069,33 @@ enter_job_directory() {
 
   assert_failure 1
   assert_equal "$(cat site/docs/index.html)" "copied"
+  unstub docker
+}
+
+@test "copy-out stages the copy inside the job's working directory" {
+  # So that putting it in place is a rename: the system's temporary directory is
+  # often another filesystem, and a small one. The stub records where docker was
+  # told to write.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+  enter_job_directory
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo \"\$4\" > \"\$4/staged-at.txt\"" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_regex "$(cat coverage/staged-at.txt)" "^${PWD}/\.docker-compose-run-copy-out\.[A-Za-z0-9]+/copy$"
   unstub docker
 }
 
