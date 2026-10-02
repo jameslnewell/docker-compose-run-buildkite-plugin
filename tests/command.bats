@@ -1069,6 +1069,32 @@ enter_job_directory() {
   unstub docker
 }
 
+@test "copy-out leaves its own scratch directory out of a copy that contains it" {
+  # A `from` that holds the job's working directory, through a mount, holds the
+  # scratch directory the copy is being staged in. $4 is <scratch>/copy.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0=".:snapshot"
+  enter_job_directory
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/. - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/. * : mkdir -p \"\$4/\$(basename \"\$(dirname \"\$4\")\")/copy\" && echo built > \"\$4/app.js\"" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_equal "$(ls -A snapshot)" "app.js"
+  unstub docker
+}
+
 @test "copy-out leaves nothing of its own in the job's working directory" {
   # The copy is staged in a scratch directory inside the job's working directory,
   # which has to be gone whether the entry was copied, skipped or failed.

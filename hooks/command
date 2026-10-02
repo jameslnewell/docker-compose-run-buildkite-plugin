@@ -312,6 +312,13 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
         { set +x; } 2>/dev/null
       fi
 
+      # A `from` that contains the job's working directory, through a mount,
+      # contains this scratch directory too. Its name is unique to this copy, so
+      # anything of that name inside the copy is the scratch directory itself.
+      if [[ "$copy_status" -eq 0 ]]; then
+        find "${scratch}/copy" -name "${scratch##*/}" -prune -exec rm -rf {} \; || copy_status=$?
+      fi
+
       # A `to` that already holds the same files is left alone. That is the mounted
       # checkout again: the container wrote `to` itself, as root unless told
       # otherwise, and an agent that isn't root could not remove it.

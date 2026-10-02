@@ -497,3 +497,29 @@ EOF
   [[ ! -L coverage ]]
   [[ "$(cat coverage/report.txt)" == "report linked" ]]
 }
+
+@test "integration: copy-out of a from that contains the working directory leaves its own scratch copy out" {
+  skip_if_no_docker
+
+  # /workdir is the job's working directory, where the copy is staged, so the
+  # scratch directory is part of what docker copies. The hook takes it back out.
+  cat > "$TEST_TMPDIR/docker-compose.yml" <<'EOF'
+services:
+  test:
+    image: busybox:latest
+    working_dir: /workdir
+    volumes:
+      - .:/workdir
+    command: sh -c 'echo built > app.js'
+EOF
+
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0=".:snapshot"
+
+  run bash "$PLUGIN_PATH/hooks/command"
+
+  [[ $status -eq 0 ]]
+  [[ "$(ls -A snapshot | sort | tr '\n' ' ')" == "app.js docker-compose.yml " ]]
+  [[ "$(cat snapshot/app.js)" == "built" ]]
+}
