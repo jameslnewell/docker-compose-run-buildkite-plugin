@@ -761,6 +761,31 @@ enter_job_directory() {
   unstub docker
 }
 
+@test "copy-out takes a leading ./ on either side and a trailing slash on to" {
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="./coverage:./backend/coverage/"
+  enter_job_directory
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\"" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_line "Copied /app/coverage to backend/coverage"
+  assert_equal "$(cat backend/coverage/report.txt)" "copied"
+  unstub docker
+}
+
 @test "copy-out replaces an existing to instead of copying into it" {
   # `docker cp` into a directory that exists nests the copy inside it.
   unset BUILDKITE_COMMAND
@@ -1069,6 +1094,17 @@ assert_copy_out_rejected() {
 # working directory.
 @test "copy-out rejects a to that is the job's working directory" {
   assert_copy_out_rejected "coverage:."
+}
+
+# `./` and `/` are the working directory and the root with nothing left once the
+# prefix and the trailing slashes are stripped. Accepted, either would have the
+# copy remove the job's working directory.
+@test "copy-out rejects a to of ./" {
+  assert_copy_out_rejected "coverage:./"
+}
+
+@test "copy-out rejects a to of /" {
+  assert_copy_out_rejected "coverage:/"
 }
 
 @test "copy-out rejects a to that leaves the job's working directory" {
