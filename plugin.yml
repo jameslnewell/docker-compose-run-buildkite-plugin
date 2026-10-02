@@ -37,6 +37,9 @@ configuration:
     rm:
       type: boolean
       description: "Remove the run container when the command exits (--rm). Set to false to keep the stopped container, named docker-compose-run-buildkite-plugin-<job id>, until pre-exit, so a post-command hook can docker cp out of it."
+    copy-out:
+      type: array
+      description: "Paths to copy out of the run container when the command exits, as from:to. A relative from is resolved against the container's working directory. to is resolved against the job's working directory and replaced if it exists. The run container is then removed by the plugin instead of by --rm."
     propagate-aws:
       type: boolean
       description: "Propagate AWS credential and region env vars (AWS_REGION, AWS_DEFAULT_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN)"

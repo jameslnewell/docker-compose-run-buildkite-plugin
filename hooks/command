@@ -41,6 +41,23 @@ if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE"; then
   done
 fi
 
+COPY_OUT=()
+if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT"; then
+  COPY_OUT=("${result[@]+"${result[@]}"}")
+fi
+for entry in "${COPY_OUT[@]+"${COPY_OUT[@]}"}"; do
+  if [[ "$entry" != *:* || "$entry" == *:*:* || "$entry" == :* || "$entry" == *: ]]; then
+    echo "+++ Error: Each copy-out entry must be \"<from>:<to>\", a path in the container and a path on the agent. Got \"${entry}\"."
+    exit 1
+  fi
+  # The copy replaces `to`, which means removing it first.
+  to="${entry#*:}"
+  if to_dir="$(CDPATH='' cd -- "$to" 2>/dev/null && pwd -P)" && [[ "$(pwd -P)/" == "${to_dir%/}/"* ]]; then
+    echo "+++ Error: copy-out cannot copy to \"${to}\": it is the job's working directory or a parent of it, and the copy would replace it."
+    exit 1
+  fi
+done
+
 COMPOSE_PROGRESS_ARGS=()
 if docker compose --help 2>&1 | grep -qE '^\s+--progress(\s|$)'; then
   COMPOSE_PROGRESS_ARGS=(--progress=plain)
@@ -98,8 +115,10 @@ echo "+++ :docker: running"
 
 # `rm: false` keeps the stopped run container until pre-exit, so a post-command
 # hook can `docker cp` output out of it — the lifetime docker-run gives its own.
+# `copy-out` needs the stopped container too, so it also drops `--rm`; the hook
+# removes the container itself once the copy is done.
 RM_ARGS=()
-if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM:-true}" == "true" ]]; then
+if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM:-true}" == "true" && ${#COPY_OUT[@]} -eq 0 ]]; then
   RM_ARGS=(--rm)
 fi
 
@@ -221,6 +240,9 @@ elif [[ "$has_plugin_commands" == "true" ]]; then
   CMD_ARGS+=("${CMD_ITEMS[@]+"${CMD_ITEMS[@]}"}")
 fi
 
+# The status is kept rather than left to `set -e`, because a command that fails
+# has usually still written the output `copy-out` is there to collect.
+run_status=0
 set -x
 docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" run \
   "${RUN_PRELOADED_ARGS[@]+"${RUN_PRELOADED_ARGS[@]}"}" \
@@ -228,5 +250,76 @@ docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$
   "${RM_ARGS[@]+"${RM_ARGS[@]}"}" \
   "${RUN_ARGS[@]+"${RUN_ARGS[@]}"}" \
   "$SERVICE" \
-  "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}"
+  "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || { run_status=$?; } 2>/dev/null
 { set +x; } 2>/dev/null
+
+# The copy happens here rather than in a post-command hook so that every
+# post-command hook sees the output: the agent runs those in reverse plugin order
+# from v4, which would put this plugin's after an artifact upload listed below it.
+copy_failed=false
+if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
+  echo "--- :docker: copying"
+  # A run that failed before creating its container left nothing to copy.
+  if container_workdir="$(docker container inspect --format '{{.Config.WorkingDir}}' "$CONTAINER")"; then
+    for entry in "${COPY_OUT[@]+"${COPY_OUT[@]}"}"; do
+      # `docker cp` resolves a relative container path against /, not against the
+      # directory the command ran in.
+      from="${entry%%:*}"
+      [[ "$from" == /* ]] || from="${container_workdir%/}/${from}"
+      to="${entry#*:}"
+      [[ "$to" == /* ]] || to="$(pwd)/${to#./}"
+      to="${to%/}"
+
+      # `docker cp` can't be asked whether a path exists, and how it words a
+      # missing one varies between Docker versions. Asking for the path as a tar
+      # stream answers it: a byte only arrives when the path is there.
+      if [[ -z "$(docker cp "${CONTAINER}:${from}" - 2>/dev/null | head -c 1)" ]]; then
+        echo "Skipping ${from}: not found in the run container"
+        continue
+      fi
+
+      # Copied to a scratch directory and moved into place, because `docker cp`
+      # into an existing directory nests the copy inside it. Removing `to` first
+      # instead would delete the source when the checkout is mounted over the
+      # container's working directory, where `from` and `to` are one directory.
+      scratch="$(mktemp -d "${TMPDIR:-/tmp}/docker-compose-run-buildkite-plugin.XXXXXX")"
+      copy_status=0
+      set -x
+      docker cp "${CONTAINER}:${from}" "${scratch}/copy" || { copy_status=$?; } 2>/dev/null
+      { set +x; } 2>/dev/null
+      # A `to` that already holds the same files is left alone. That is the mounted
+      # checkout again: the container wrote `to` itself, as root unless told
+      # otherwise, and an agent that isn't root could not remove it.
+      if [[ "$copy_status" -eq 0 ]] && ! diff -r "${scratch}/copy" "$to" >/dev/null 2>&1; then
+        { mkdir -p "$(dirname "$to")" && rm -rf "$to" && mv "${scratch}/copy" "$to"; } || copy_status=$?
+      fi
+      rm -rf "$scratch"
+
+      if [[ "$copy_status" -ne 0 ]]; then
+        echo "^^^ +++"
+        echo "Error: could not copy ${from} out of the run container to ${to}"
+        copy_failed=true
+        continue
+      fi
+      echo "Copied ${from} to ${to}"
+    done
+
+    # pre-exit removes the container if this doesn't, or never gets to run.
+    if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM:-true}" == "true" ]]; then
+      set -x
+      docker rm --force --volumes "$CONTAINER" || true
+      { set +x; } 2>/dev/null
+    fi
+  else
+    echo "^^^ +++"
+    echo "Error: there is no run container to copy out of"
+    copy_failed=true
+  fi
+fi
+
+if [[ "$run_status" -ne 0 ]]; then
+  exit "$run_status"
+fi
+if [[ "$copy_failed" == "true" ]]; then
+  exit 1
+fi

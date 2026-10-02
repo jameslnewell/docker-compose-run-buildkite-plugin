@@ -90,6 +90,22 @@ steps:
           propagate-buildkite-environment: true
 ```
 
+Copy the command's output out of the run container and onto the agent, where a later plugin can pick it up, without mounting anything into the container:
+
+```yaml
+steps:
+  - command: npm test
+    plugins:
+      - jameslnewell/docker-compose-run#v0.14.1:
+          service: test
+          copy-out:
+            - coverage:backend/coverage
+      - artifacts#v1.10.0:
+          upload: "backend/coverage/**/*"
+```
+
+`copy-out` is newer than `v0.16.0`, so pin a release that includes it. An older release copies nothing. See [Copying output out](#copying-output-out) for how the two paths are resolved.
+
 Keep the stopped run container until the job ends, so a `post-command` hook can copy output out of it instead of the step mounting a directory into the container:
 
 ```yaml
@@ -125,6 +141,7 @@ fi
 | `environment` | array | — | Environment variables as `KEY=VALUE`, passed as `-e`. |
 | `volumes` | array | — | Volume mounts as `host:container`, passed as `-v`. Host paths of `.` or beginning with `./` are resolved against `pwd`, so `./src:/app/src` mounts a directory from the checkout. |
 | `rm` | boolean | `true` | Remove the run container when the command exits, as `--rm`. Set to `false` to keep the stopped container, named `docker-compose-run-buildkite-plugin-<job id>`, until the `pre-exit` hook removes it, so a `post-command` hook can `docker cp` out of it. Matches the official `docker-compose` plugin's `rm`. |
+| `copy-out` | array | — | Paths to copy out of the run container when the command exits, as `<from>:<to>`. A relative `from` is resolved against the container's working directory. `to` is resolved against the job's working directory, and replaced if it exists. See [Copying output out](#copying-output-out). |
 | `propagate-aws` | boolean | `false` | Propagate `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. |
 | `propagate-buildkite-environment` | boolean | `false` | Propagate `CI`, `BUILDKITE` and every `BUILDKITE_*` variable from the agent. |
 
@@ -150,6 +167,21 @@ The plugin fails the step, rather than silently picking one, when the configurat
 - `shell` is given as a string instead of an array or `false`.
 - `shell` is set as an array while `entrypoint` is also set, since `entrypoint` suppresses shell wrapping.
 
+### Copying output out
+
+Each `copy-out` entry is `<from>:<to>`, source first, like `volumes`:
+
+- **`from`** is a file or directory in the run container. A relative path is resolved against the working directory the command ran in: the `workdir` option, the service's `working_dir` or the image's `WORKDIR`, and `/` when none of those is set. `docker cp` by itself resolves it against `/`. An absolute path is used as it is.
+- **`to`** is a path on the agent, relative to the job's working directory. Its parent directories are created. Whatever is already there is replaced, so `to` ends up holding what `from` holds rather than a copy nested inside it. That includes a service that mounts the checkout over its working directory, where `from` and `to` are the same directory. `to` can't be the job's working directory itself, or a parent of it.
+
+The copy runs as soon as the command exits, whether it passed or failed, and before the plugin's `command` hook returns. Every `post-command` hook therefore sees the output, whatever order the agent runs them in.
+
+The step exits with the command's status. A `from` that doesn't exist is logged and skipped, so a command that wrote nothing doesn't fail the step. Any other failure to copy does. An entry that isn't `<from>:<to>` fails the step before anything is started.
+
+With `copy-out` the run goes without `--rm`, because the copy needs the stopped container. The plugin removes the container and its anonymous volumes once the copy is done, unless `rm` is `false`, which keeps it until `pre-exit` as usual.
+
+Only the run container can be copied from, not the services it depends on.
+
 ## How it works
 
 Everything runs under a compose project named `docker-compose-run-buildkite-plugin-<job id>`, so concurrent jobs on the same agent never collide.
@@ -157,7 +189,8 @@ Everything runs under a compose project named `docker-compose-run-buildkite-plug
 1. **Pull** — `docker compose pull --include-deps <service>` fetches only the target service and its dependency tree. Skipped on older Compose that lacks `--include-deps`.
 2. **Up** — `docker compose up --detach --scale <service>=0 <service>` brings up the target's `depends_on` tree without starting the target itself. `--pull never` is added when the pull phase already fetched the images.
 3. **Run** — `docker compose run --name docker-compose-run-buildkite-plugin-<job id> --rm <service>` with the configured overrides, again adding `--pull never` when the images are already local. `rm: false` drops `--rm`, so the stopped container outlives the command.
-4. **Cleanup** — the `pre-exit` hook writes the project's logs to `docker-compose-run-buildkite-plugin.log`, uploads it as a Buildkite artifact, removes the run container with its anonymous volumes (`docker compose down` removes the container, but leaves those when no `file` is given), then runs `docker compose down --volumes --remove-orphans`.
+4. **Copy** — only with `copy-out`, which also drops `--rm`: `docker cp` copies each entry out of the stopped run container, then `docker rm --force --volumes` removes it unless `rm` is `false`.
+5. **Cleanup** — the `pre-exit` hook writes the project's logs to `docker-compose-run-buildkite-plugin.log`, uploads it as a Buildkite artifact, removes the run container with its anonymous volumes (`docker compose down` removes the container, but leaves those when no `file` is given), then runs `docker compose down --volumes --remove-orphans`.
 
 Each phase is its own log group, so you can fold and expand them independently and see exactly where time is spent.
 

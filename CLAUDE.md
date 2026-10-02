@@ -66,7 +66,7 @@ a flag).
 
 Both hooks expand arrays that are legitimately empty (`FILE_ARGS` with no `file`,
 `RUN_ARGS` with none of workdir/entrypoint/environment/volumes, `RM_ARGS` with
-`rm: false`, the `*_PRELOADED_ARGS` and `COMPOSE_PROGRESS_ARGS` pairs whenever
+`rm: false` or `copy-out`, `COPY_OUT` without it, the `*_PRELOADED_ARGS` and `COMPOSE_PROGRESS_ARGS` pairs whenever
 Compose lacks the flag). Under `set -u`, bash only expands an empty array to nothing from 4.4
 onwards; before that it is an `unbound variable` error that kills the hook.
 
