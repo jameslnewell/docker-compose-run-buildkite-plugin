@@ -814,6 +814,7 @@ enter_job_directory() {
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
+  assert_output --partial "Skipped /app/coverage: coverage already holds the same files"
   assert_equal "$(ls -di coverage)" "$inode_before"
   unstub docker
 }
@@ -839,7 +840,7 @@ enter_job_directory() {
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
-  assert_output --partial "Skipping /app/coverage: not found in the run container"
+  assert_output --partial "Skipped /app/coverage: not found in the run container"
   [[ ! -e coverage ]]
   unstub docker
 }
@@ -956,7 +957,7 @@ assert_copy_out_rejected() {
 
   assert_failure 1
   assert_line --index 0 --partial "+++ Error: "
-  assert_equal "${#lines[@]}" 1
+  refute_output --partial "docker"
 }
 
 @test "copy-out rejects an entry with no colon" {
@@ -975,11 +976,16 @@ assert_copy_out_rejected() {
   assert_copy_out_rejected "coverage:"
 }
 
+# Replacing `to` removes whatever is there, so it has to stay inside the job's
+# working directory.
 @test "copy-out rejects a to that is the job's working directory" {
-  # Replacing `to` removes it first.
   assert_copy_out_rejected "coverage:."
 }
 
-@test "copy-out rejects a to that is a parent of the job's working directory" {
-  assert_copy_out_rejected "coverage:.."
+@test "copy-out rejects a to that leaves the job's working directory" {
+  assert_copy_out_rejected "coverage:backend/../../coverage"
+}
+
+@test "copy-out rejects an absolute to" {
+  assert_copy_out_rejected "coverage:/tmp/coverage"
 }

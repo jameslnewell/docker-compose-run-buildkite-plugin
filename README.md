@@ -172,11 +172,11 @@ The plugin fails the step, rather than silently picking one, when the configurat
 Each `copy-out` entry is `<from>:<to>`, source first, like `volumes`:
 
 - **`from`** is a file or directory in the run container. A relative path is resolved against the working directory the command ran in: the `workdir` option, the service's `working_dir` or the image's `WORKDIR`, and `/` when none of those is set. `docker cp` by itself resolves it against `/`. An absolute path is used as it is.
-- **`to`** is a path on the agent, relative to the job's working directory. Its parent directories are created. Whatever is already there is replaced, so `to` ends up holding what `from` holds rather than a copy nested inside it. That includes a service that mounts the checkout over its working directory, where `from` and `to` are the same directory. `to` can't be the job's working directory itself, or a parent of it.
+- **`to`** is a path inside the job's working directory, and relative to it. Its parent directories are created. Whatever is already there is replaced, so `to` ends up holding what `from` holds rather than a copy nested inside it. That includes a service that mounts the checkout over its working directory, where `from` and `to` are the same directory. Because it is replaced, `to` can't be absolute, contain `..`, or be the working directory itself.
 
 The copy runs as soon as the command exits, whether it passed or failed, and before the plugin's `command` hook returns. Every `post-command` hook therefore sees the output, whatever order the agent runs them in.
 
-The step exits with the command's status. A `from` that doesn't exist is logged and skipped, so a command that wrote nothing doesn't fail the step. Any other failure to copy does. An entry that isn't `<from>:<to>` fails the step before anything is started.
+The step exits with the command's status. A `from` that doesn't exist is logged and skipped, so a command that wrote nothing doesn't fail the step. Any other failure to copy does. An entry that isn't `<from>:<to>`, or whose `to` isn't allowed, fails the step before anything is started.
 
 With `copy-out` the run goes without `--rm`, because the copy needs the stopped container. The plugin removes the container and its anonymous volumes once the copy is done, unless `rm` is `false`, which keeps it until `pre-exit` as usual.
 

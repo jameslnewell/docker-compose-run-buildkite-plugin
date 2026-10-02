@@ -349,7 +349,7 @@ EOF
   run bash "$PLUGIN_PATH/hooks/command"
 
   [[ $status -eq 0 ]]
-  [[ "$output" == *"Skipping /workdir/backend/docs: not found in the run container"* ]]
+  [[ "$output" == *"Skipped /workdir/backend/docs: not found in the run container"* ]]
   [[ ! -e docs ]]
   [[ "$(cat reports/absolute.txt)" == "absolute" ]]
 }

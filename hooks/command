@@ -41,22 +41,30 @@ if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE"; then
   done
 fi
 
+# Checked before anything is pulled or started, so a malformed entry fails in
+# seconds rather than after the command has run.
 COPY_OUT=()
 if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT"; then
-  COPY_OUT=("${result[@]+"${result[@]}"}")
+  for entry in "${result[@]+"${result[@]}"}"; do
+    if [[ "$entry" != *:* || "$entry" == *:*:* || "$entry" == :* || "$entry" == *: ]]; then
+      echo "+++ Error: Each copy-out entry must be \"<from>:<to>\", a path in the container and a path in the job's working directory. Got \"${entry}\"."
+      exit 1
+    fi
+    to="${entry#*:}"
+    to="${to#./}"
+    while [[ "$to" == */ ]]; do
+      to="${to%/}"
+    done
+    # Whatever is at `to` is removed to make way for the copy, so `to` may not
+    # name the working directory itself or anything outside it.
+    if [[ -z "$to" || "$to" == /* || "/${to}/" == */./* || "/${to}/" == */../* ]]; then
+      echo "+++ Error: The <to> of a copy-out entry must be a path inside the job's working directory. Got \"${entry}\"."
+      echo "The copy replaces whatever is at <to>, so it cannot be absolute, contain \"..\", or be the working directory itself."
+      exit 1
+    fi
+    COPY_OUT+=("${entry%%:*}:${to}")
+  done
 fi
-for entry in "${COPY_OUT[@]+"${COPY_OUT[@]}"}"; do
-  if [[ "$entry" != *:* || "$entry" == *:*:* || "$entry" == :* || "$entry" == *: ]]; then
-    echo "+++ Error: Each copy-out entry must be \"<from>:<to>\", a path in the container and a path on the agent. Got \"${entry}\"."
-    exit 1
-  fi
-  # The copy replaces `to`, which means removing it first.
-  to="${entry#*:}"
-  if to_dir="$(CDPATH='' cd -- "$to" 2>/dev/null && pwd -P)" && [[ "$(pwd -P)/" == "${to_dir%/}/"* ]]; then
-    echo "+++ Error: copy-out cannot copy to \"${to}\": it is the job's working directory or a parent of it, and the copy would replace it."
-    exit 1
-  fi
-done
 
 COMPOSE_PROGRESS_ARGS=()
 if docker compose --help 2>&1 | grep -qE '^\s+--progress(\s|$)'; then
@@ -265,16 +273,15 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       # `docker cp` resolves a relative container path against /, not against the
       # directory the command ran in.
       from="${entry%%:*}"
-      [[ "$from" == /* ]] || from="${container_workdir%/}/${from}"
+      [[ "$from" == /* ]] || from="${container_workdir%/}/${from#./}"
       to="${entry#*:}"
-      [[ "$to" == /* ]] || to="$(pwd)/${to#./}"
-      to="${to%/}"
+      dest="$(pwd)/${to}"
 
       # `docker cp` can't be asked whether a path exists, and how it words a
       # missing one varies between Docker versions. Asking for the path as a tar
       # stream answers it: a byte only arrives when the path is there.
       if [[ -z "$(docker cp "${CONTAINER}:${from}" - 2>/dev/null | head -c 1)" ]]; then
-        echo "Skipping ${from}: not found in the run container"
+        echo "Skipped ${from}: not found in the run container"
         continue
       fi
 
@@ -287,11 +294,18 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       set -x
       docker cp "${CONTAINER}:${from}" "${scratch}/copy" || { copy_status=$?; } 2>/dev/null
       { set +x; } 2>/dev/null
+
       # A `to` that already holds the same files is left alone. That is the mounted
       # checkout again: the container wrote `to` itself, as root unless told
       # otherwise, and an agent that isn't root could not remove it.
-      if [[ "$copy_status" -eq 0 ]] && ! diff -r "${scratch}/copy" "$to" >/dev/null 2>&1; then
-        { mkdir -p "$(dirname "$to")" && rm -rf "$to" && mv "${scratch}/copy" "$to"; } || copy_status=$?
+      if [[ "$copy_status" -eq 0 ]] && diff -r "${scratch}/copy" "$dest" >/dev/null 2>&1; then
+        rm -rf "$scratch"
+        echo "Skipped ${from}: ${to} already holds the same files"
+        continue
+      fi
+
+      if [[ "$copy_status" -eq 0 ]]; then
+        { mkdir -p "$(dirname "$dest")" && rm -rf "$dest" && mv "${scratch}/copy" "$dest"; } || copy_status=$?
       fi
       rm -rf "$scratch"
 
