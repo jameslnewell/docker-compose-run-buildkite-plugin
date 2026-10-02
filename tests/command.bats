@@ -817,6 +817,7 @@ enter_job_directory() {
   assert_success
   assert_output --partial "Skipped /app/coverage: coverage already holds the same files"
   assert_equal "$(ls -di coverage)" "$inode_before"
+  assert_equal "$(ls -A)" "coverage"
   unstub docker
 }
 
@@ -954,6 +955,38 @@ enter_job_directory() {
 
   assert_failure 1
   assert_equal "$(cat site/docs/index.html)" "copied"
+  unstub docker
+}
+
+@test "copy-out leaves nothing of its own in the job's working directory" {
+  # The copy is staged in a scratch directory inside the job's working directory,
+  # which has to be gone whether the entry was copied, skipped or failed.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_1="docs:docs"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_2="dist:dist"
+  enter_job_directory
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\"" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/docs - : exit 1" \
+    "cp docker-compose-run-buildkite-plugin-test-job-id:/ - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/dist - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/dist * : mkdir \"\$4\" && exit 1" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_failure 1
+  assert_equal "$(ls -A)" "coverage"
   unstub docker
 }
 

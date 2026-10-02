@@ -296,7 +296,12 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       # into an existing directory nests the copy inside it. Removing `to` first
       # instead would delete the source when the checkout is mounted over the
       # container's working directory, where `from` and `to` are one directory.
-      scratch="$(mktemp -d "${TMPDIR:-/tmp}/docker-compose-run-buildkite-plugin.XXXXXX")"
+      #
+      # The scratch directory is in the job's working directory rather than the
+      # system's temporary one, so the move is a rename. /tmp is often a tmpfs
+      # too small for the output, and a move across filesystems that failed
+      # part-way would leave `to` half replaced.
+      scratch="$(mktemp -d "$(pwd)/.docker-compose-run-copy-out.XXXXXX")"
       copy_status=0
       set -x
       docker cp --follow-link "${CONTAINER}:${from}" "${scratch}/copy" || { copy_status=$?; } 2>/dev/null

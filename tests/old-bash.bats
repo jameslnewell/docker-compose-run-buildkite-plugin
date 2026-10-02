@@ -162,7 +162,7 @@ run_hook_on_bash() {
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
-  assert_line --partial "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/docker-compose-run-buildkite-plugin."
+  assert_line --partial "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/.docker-compose-run-copy-out."
   assert_line "DOCKER: rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id"
   assert_line "backend/coverage"
 }
@@ -176,7 +176,7 @@ run_hook_on_bash() {
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
-  assert_line --partial "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/docker-compose-run-buildkite-plugin."
+  assert_line --partial "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/.docker-compose-run-copy-out."
   assert_line "DOCKER: rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id"
   assert_line "backend/coverage"
 }
