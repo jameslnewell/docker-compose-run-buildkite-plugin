@@ -280,11 +280,11 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       # `docker cp` can't be asked whether a path exists, and how it words a
       # missing one varies between Docker versions. Asking for the path as a tar
       # stream answers it: a byte only arrives when the path is there. None
-      # arrives from a container or a daemon that has gone either, so the
-      # container is checked before the path is called missing. If it has gone,
-      # the copy below fails with docker's own error.
-      if [[ -z "$(docker cp "${CONTAINER}:${from}" - 2>/dev/null | head -c 1)" ]] \
-        && docker container inspect "$CONTAINER" >/dev/null 2>&1; then
+      # arrives when the container has gone or its filesystem can't be read
+      # either, so the path is only called missing if / does answer. If it
+      # doesn't, the copy below fails with docker's own error.
+      if [[ -z "$(docker cp "${CONTAINER}:${from}" - 2>/dev/null | head -c 1)" \
+        && -n "$(docker cp "${CONTAINER}:/" - 2>/dev/null | head -c 1)" ]]; then
         echo "Skipped ${from}: not found in the run container"
         continue
       fi
