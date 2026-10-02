@@ -52,8 +52,12 @@ if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT"; 
     fi
     to="${entry#*:}"
     to="${to#./}"
+    # A trailing slash says `to` is a directory. It is kept, as a single one, so
+    # that a `from` that turns out to be a file can be refused after the copy.
+    to_slash=""
     while [[ "$to" == */ ]]; do
       to="${to%/}"
+      to_slash="/"
     done
     # Whatever is at `to` is removed to make way for the copy, so `to` may not
     # name the working directory itself or anything outside it.
@@ -62,7 +66,7 @@ if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT"; 
       echo "The copy replaces whatever is at <to>, so it cannot be absolute, have a \".\" or \"..\" component, or be the working directory itself."
       exit 1
     fi
-    COPY_OUT+=("${entry%%:*}:${to}")
+    COPY_OUT+=("${entry%%:*}:${to}${to_slash}")
   done
 fi
 
@@ -275,6 +279,11 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       from="${entry%%:*}"
       [[ "$from" == /* ]] || from="${container_workdir%/}/${from#./}"
       to="${entry#*:}"
+      to_is_directory=false
+      if [[ "$to" == */ ]]; then
+        to_is_directory=true
+        to="${to%/}"
+      fi
       dest="$(pwd)/${to}"
 
       # `docker cp` can't be asked whether a path exists, and how it words a
@@ -317,6 +326,17 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       # anything of that name inside the copy is the scratch directory itself.
       if [[ "$copy_status" -eq 0 ]]; then
         find "${scratch}/copy" -name "${scratch##*/}" -prune -exec rm -rf {} \; || copy_status=$?
+      fi
+
+      # `to` is replaced by the copy, never copied into. So a file can't go to a
+      # `to` written as a directory: it would replace that directory with a file
+      # of its name, where `cp` would have put the file inside it.
+      if [[ "$copy_status" -eq 0 && "$to_is_directory" == "true" && ! -d "${scratch}/copy" ]]; then
+        rm -rf "$scratch" || true
+        echo "^^^ +++"
+        echo "Error: ${to}/ ends in / but ${from} is a file. Name the file in <to>, as in ${to}/${from##*/}"
+        copy_failed=true
+        continue
       fi
 
       # A `to` that already holds the same files is left alone. That is the mounted

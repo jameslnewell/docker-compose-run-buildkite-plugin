@@ -786,6 +786,36 @@ enter_job_directory() {
   unstub docker
 }
 
+@test "copy-out refuses to put a file at a to written as a directory" {
+  # `to` is replaced, never copied into, so the file would take the place of the
+  # directory and everything in it, where `cp` would have put the file inside.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="/out/junit.xml:test-results/"
+  enter_job_directory
+  mkdir test-results
+  echo earlier > test-results/earlier.xml
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/junit.xml - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/junit.xml * : echo results > \"\$4\"" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_failure 1
+  assert_line "Error: test-results/ ends in / but /out/junit.xml is a file. Name the file in <to>, as in test-results/junit.xml"
+  assert_equal "$(ls -A)" "test-results"
+  assert_equal "$(ls -A test-results)" "earlier.xml"
+  unstub docker
+}
+
 @test "copy-out replaces an existing to instead of copying into it" {
   # `docker cp` into a directory that exists nests the copy inside it.
   unset BUILDKITE_COMMAND
