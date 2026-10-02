@@ -956,6 +956,34 @@ enter_job_directory() {
   unstub docker
 }
 
+@test "copy-out keeps the command's exit status when it has nowhere to stage a copy" {
+  # A job directory that can't be written to must not end the hook on the spot
+  # with mktemp's status: the container still has to be removed.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+  enter_job_directory
+  mkdir "$BATS_TEST_TMPDIR/shims"
+  printf '#!/bin/sh\necho "mktemp: failed to create directory" >&2\nexit 1\n' > "$BATS_TEST_TMPDIR/shims/mktemp"
+  chmod +x "$BATS_TEST_TMPDIR/shims/mktemp"
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : exit 3" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run env PATH="$BATS_TEST_TMPDIR/shims:$PATH" "$PLUGIN_PATH/hooks/command"
+
+  assert_failure 3
+  assert_output --partial "Error: could not copy /app/coverage out of the run container to coverage"
+  unstub docker
+}
+
 @test "copy-out copies the remaining entries after one fails" {
   unset BUILDKITE_COMMAND
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"

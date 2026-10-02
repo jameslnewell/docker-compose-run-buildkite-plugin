@@ -301,17 +301,22 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       # system's temporary one, so the move is a rename. /tmp is often a tmpfs
       # too small for the output, and a move across filesystems that failed
       # part-way would leave `to` half replaced.
-      scratch="$(mktemp -d "$(pwd)/.docker-compose-run-copy-out.XXXXXX")"
+      #
+      # Nothing here is left to `set -e`: a step that fails has to fail with the
+      # command's status, after every entry and the removal have had their turn.
       copy_status=0
-      set -x
-      docker cp --follow-link "${CONTAINER}:${from}" "${scratch}/copy" || { copy_status=$?; } 2>/dev/null
-      { set +x; } 2>/dev/null
+      scratch="$(mktemp -d "$(pwd)/.docker-compose-run-copy-out.XXXXXX")" || copy_status=$?
+      if [[ "$copy_status" -eq 0 ]]; then
+        set -x
+        docker cp --follow-link "${CONTAINER}:${from}" "${scratch}/copy" || { copy_status=$?; } 2>/dev/null
+        { set +x; } 2>/dev/null
+      fi
 
       # A `to` that already holds the same files is left alone. That is the mounted
       # checkout again: the container wrote `to` itself, as root unless told
       # otherwise, and an agent that isn't root could not remove it.
       if [[ "$copy_status" -eq 0 ]] && diff -r "${scratch}/copy" "$dest" >/dev/null 2>&1; then
-        rm -rf "$scratch"
+        rm -rf "$scratch" || true
         echo "Skipped ${from}: ${to} already holds the same files"
         continue
       fi
@@ -319,7 +324,7 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       if [[ "$copy_status" -eq 0 ]]; then
         { mkdir -p "$(dirname "$dest")" && rm -rf "$dest" && mv "${scratch}/copy" "$dest"; } || copy_status=$?
       fi
-      rm -rf "$scratch"
+      [[ -z "$scratch" ]] || rm -rf "$scratch" || true
 
       if [[ "$copy_status" -ne 0 ]]; then
         echo "^^^ +++"
