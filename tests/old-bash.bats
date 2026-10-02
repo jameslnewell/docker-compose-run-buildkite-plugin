@@ -40,9 +40,18 @@ setup() {
 case "$*" in
   "compose --help"|"compose pull --help"|"compose up --help"|"compose run --help")
     exit 0 ;;
+  # copy-out reads the run container's working directory back from this.
+  "container inspect --format "*)
+    echo "/workdir/backend"
+    exit 0 ;;
 esac
 echo "DOCKER: $*"
 for a in "$@"; do echo "ARG=<$a>"; done
+# copy-out moves what `docker cp` wrote into place, so there has to be something.
+# `cp <path> -` asks for a tar stream instead, which the output above stands in for.
+if [ "$1" = "cp" ] && [ "$3" != "-" ]; then
+  mkdir "$3"
+fi
 STUB
 
   cat > "${STUB_DIR}/buildkite-agent" <<'STUB'
@@ -140,6 +149,36 @@ run_hook_on_bash() {
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
+}
+
+@test "command hook copies out and removes the run container on the oldest supported bash" {
+  skip_unless_docker
+
+  # `copy-out` empties RM_ARGS as `rm: false` does, and fills COPY_OUT, which
+  # every other test here leaves empty.
+  run_hook_on_bash "$OLDEST_BASH" command "; ls -d backend/coverage" \
+    "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0=coverage:backend/coverage"
+
+  assert_success
+  refute_output --partial "unbound variable"
+  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
+  assert_line --partial "DOCKER: cp docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/docker-compose-run-buildkite-plugin."
+  assert_line "DOCKER: rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id"
+  assert_line "backend/coverage"
+}
+
+@test "command hook copies out and removes the run container on bash 4.2" {
+  skip_unless_docker
+
+  run_hook_on_bash "4.2" command "; ls -d backend/coverage" \
+    "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0=coverage:backend/coverage"
+
+  assert_success
+  refute_output --partial "unbound variable"
+  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
+  assert_line --partial "DOCKER: cp docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/docker-compose-run-buildkite-plugin."
+  assert_line "DOCKER: rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id"
+  assert_line "backend/coverage"
 }
 
 @test "pre-exit hook does not poison the uploaded log on the oldest supported bash" {
