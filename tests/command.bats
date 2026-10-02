@@ -846,6 +846,64 @@ enter_job_directory() {
   unstub docker
 }
 
+@test "copy-out replaces a file at to with a directory that holds a file of the same name and content" {
+  # `diff` between a directory and a file compares the file with the directory's
+  # entry of that name, and would call these two the same.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:lcov.info"
+  enter_job_directory
+  echo covered > lcov.info
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\"" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_line "Copied /app/coverage to lcov.info"
+  assert_equal "$(cat lcov.info/lcov.info)" "covered"
+  unstub docker
+}
+
+@test "copy-out replaces a directory at to with a file, whatever the directory holds" {
+  # The copy is staged as a file named `copy`, which is the entry `diff` would
+  # compare it with inside the directory.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="/out/report.txt:reports"
+  enter_job_directory
+  mkdir reports
+  echo report > reports/copy
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/report.txt - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/report.txt * : echo report > \"\$4\"" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_line "Copied /out/report.txt to reports"
+  [[ -f reports ]]
+  assert_equal "$(cat reports)" "report"
+  unstub docker
+}
+
 @test "copy-out skips a from that does not exist" {
   # Asking for a missing path as a tar stream writes nothing to stdout, which is
   # how the hook tells it apart from a copy that failed. Nothing arrives from a

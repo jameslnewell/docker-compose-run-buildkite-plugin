@@ -315,7 +315,12 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       # A `to` that already holds the same files is left alone. That is the mounted
       # checkout again: the container wrote `to` itself, as root unless told
       # otherwise, and an agent that isn't root could not remove it.
-      if [[ "$copy_status" -eq 0 ]] && diff -r "${scratch}/copy" "$dest" >/dev/null 2>&1; then
+      #
+      # Both have to be the same kind first. Given a file and a directory, `diff`
+      # compares the file with the entry of its name inside the directory.
+      if [[ "$copy_status" -eq 0 ]] \
+        && [[ -d "${scratch}/copy" && -d "$dest" || -f "${scratch}/copy" && -f "$dest" ]] \
+        && diff -r "${scratch}/copy" "$dest" >/dev/null 2>&1; then
         rm -rf "$scratch" || true
         echo "Skipped ${from}: ${to} already holds the same files"
         continue
