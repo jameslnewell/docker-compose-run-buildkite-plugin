@@ -49,8 +49,8 @@ echo "DOCKER: $*"
 for a in "$@"; do echo "ARG=<$a>"; done
 # copy-out moves what `docker cp` wrote into place, so there has to be something.
 # `cp <path> -` asks for a tar stream instead, which the output above stands in for.
-if [ "$1" = "cp" ] && [ "$3" != "-" ]; then
-  mkdir "$3"
+if [ "$1 $2" = "cp --follow-link" ] && [ "$4" != "-" ]; then
+  mkdir "$4"
 fi
 STUB
 
@@ -162,7 +162,7 @@ run_hook_on_bash() {
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
-  assert_line --partial "DOCKER: cp docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/docker-compose-run-buildkite-plugin."
+  assert_line --partial "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/docker-compose-run-buildkite-plugin."
   assert_line "DOCKER: rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id"
   assert_line "backend/coverage"
 }
@@ -176,7 +176,7 @@ run_hook_on_bash() {
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
-  assert_line --partial "DOCKER: cp docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/docker-compose-run-buildkite-plugin."
+  assert_line --partial "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/docker-compose-run-buildkite-plugin."
   assert_line "DOCKER: rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id"
   assert_line "backend/coverage"
 }

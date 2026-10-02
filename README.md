@@ -171,7 +171,7 @@ The plugin fails the step, rather than silently picking one, when the configurat
 
 Each `copy-out` entry is `<from>:<to>`, source first, like `volumes`:
 
-- **`from`** is a file or directory in the run container. A relative path is resolved against the working directory the command ran in: the `workdir` option, the service's `working_dir` or the image's `WORKDIR`, and `/` when none of those is set. `docker cp` by itself resolves it against `/`. An absolute path is used as it is.
+- **`from`** is a file or directory in the run container. If it is a symlink, what it points to is copied. A relative path is resolved against the working directory the command ran in: the `workdir` option, the service's `working_dir` or the image's `WORKDIR`, and `/` when none of those is set. `docker cp` by itself resolves it against `/`. An absolute path is used as it is.
 - **`to`** is a path inside the job's working directory, and relative to it. Its parent directories are created. Whatever is already there is replaced, so `to` ends up holding what `from` holds rather than a copy nested inside it. That includes a service that mounts the checkout over its working directory, where `from` and `to` are the same directory. Because it is replaced, `to` can't be absolute, contain `..`, or be the working directory itself.
 
 The copy runs as soon as the command exits, whether it passed or failed, and before the plugin's `command` hook returns. Every `post-command` hook therefore sees the output, whatever order the agent runs them in.

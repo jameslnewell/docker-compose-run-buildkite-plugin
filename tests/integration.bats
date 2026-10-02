@@ -473,3 +473,27 @@ EOF
   [[ "$(cat coverage/report.txt)" == "report mounted" ]]
   [[ ! -e coverage/coverage ]]
 }
+
+@test "integration: copy-out copies what a symlinked from points to, not the link" {
+  skip_if_no_docker
+
+  # `docker cp` copies a symlink as a symlink unless told to follow it, and a
+  # link to /real means nothing on the agent.
+  cat > "$TEST_TMPDIR/docker-compose.yml" <<'EOF'
+services:
+  test:
+    image: busybox:latest
+    working_dir: /workdir
+    command: sh -c 'mkdir -p /real && echo "report linked" > /real/report.txt && ln -s /real coverage'
+EOF
+
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+
+  run bash "$PLUGIN_PATH/hooks/command"
+
+  [[ $status -eq 0 ]]
+  [[ ! -L coverage ]]
+  [[ "$(cat coverage/report.txt)" == "report linked" ]]
+}
