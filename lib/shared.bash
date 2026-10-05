@@ -36,4 +36,5 @@ plugin_read_list_into_result() {
 # What copy-out's scratch directories in the job's working directory are named
 # before mktemp's suffix. The command hook creates them, and pre-exit removes any
 # that a killed command hook left behind.
+# shellcheck disable=SC2034 # read by the hooks that source this file
 COPY_OUT_SCRATCH=".docker-compose-run-copy-out"
