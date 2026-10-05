@@ -314,7 +314,7 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       # Nothing here is left to `set -e`: a step that fails has to fail with the
       # command's status, after every entry and the removal have had their turn.
       copy_status=0
-      scratch="$(mktemp -d "$(pwd)/.docker-compose-run-copy-out.XXXXXX")" || copy_status=$?
+      scratch="$(mktemp -d "$(pwd)/${COPY_OUT_SCRATCH}.XXXXXX")" || copy_status=$?
       if [[ "$copy_status" -eq 0 ]]; then
         set -x
         docker cp --follow-link "${CONTAINER}:${from}" "${scratch}/copy" || { copy_status=$?; } 2>/dev/null
