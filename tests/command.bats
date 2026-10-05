@@ -11,6 +11,9 @@ setup() {
 }
 
 teardown() {
+  # A test that takes write permission away has to give it back, or bats cannot
+  # remove its temp directory.
+  chmod -R u+w "$BATS_TEST_TMPDIR/job" 2>/dev/null || true
   unstub docker 2>/dev/null || true
 }
 
@@ -931,6 +934,100 @@ enter_job_directory() {
   assert_line "Copied /out/report.txt to reports"
   [[ -f reports ]]
   assert_equal "$(cat reports)" "report"
+  unstub docker
+}
+
+@test "copy-out leaves a to it cannot remove whole as it was" {
+  # rm -rf would remove lcov.info and then fail on html/, leaving part of to and
+  # none of the copy. Root can remove anything, so only a non-root run gets here.
+  [[ "$(id -u)" -ne 0 ]] || skip "root can remove any to"
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+  enter_job_directory
+  mkdir -p coverage/html
+  echo earlier > coverage/lcov.info
+  echo earlier > coverage/html/index.html
+  chmod a-w coverage/html
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\"" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_failure 1
+  assert_line "Error: could not copy /app/coverage out of the run container to coverage"
+  assert_line "coverage holds a directory this agent cannot write to, so it was left as it was."
+  assert_equal "$(cat coverage/lcov.info)" "earlier"
+  assert_equal "$(cat coverage/html/index.html)" "earlier"
+  assert_equal "$(ls -A)" "coverage"
+  unstub docker
+}
+
+@test "copy-out leaves a to whose directory it cannot write to as it was" {
+  # rm -rf would empty reports/coverage and then fail to remove it.
+  [[ "$(id -u)" -ne 0 ]] || skip "root can remove any to"
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:reports/coverage"
+  enter_job_directory
+  mkdir -p reports/coverage
+  echo earlier > reports/coverage/lcov.info
+  chmod a-w reports
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\"" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_failure 1
+  assert_line "reports/coverage holds a directory this agent cannot write to, so it was left as it was."
+  assert_equal "$(cat reports/coverage/lcov.info)" "earlier"
+  unstub docker
+}
+
+@test "copy-out replaces an empty directory it cannot write to" {
+  # The mount point docker leaves in the checkout for a volume is root's and
+  # empty, and goes with its parent like any empty directory.
+  [[ "$(id -u)" -ne 0 ]] || skip "root can remove any to"
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="node_modules:node_modules"
+  enter_job_directory
+  mkdir node_modules
+  chmod a-w node_modules
+
+  stub docker \
+    "compose --help : echo ''" \
+    "compose pull --help : echo 'no such flag'" \
+    "compose up --help : echo 'no such flag'" \
+    "compose run --help : echo 'no such flag'" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
+    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/node_modules - : echo tar" \
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/node_modules * : mkdir \"\$4\" && echo installed > \"\$4/package.json\"" \
+    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_equal "$(cat node_modules/package.json)" "installed"
   unstub docker
 }
 
