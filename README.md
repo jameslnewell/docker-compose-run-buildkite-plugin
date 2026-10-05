@@ -104,7 +104,7 @@ steps:
           upload: "backend/coverage/**/*"
 ```
 
-`copy-out` is newer than `v0.16.0`, so pin a release that includes it. An older release copies nothing. See [Copying output out](#copying-output-out) for how the two paths are resolved.
+`copy-out` is not in older releases, so pin one that includes it. An older release copies nothing. See [Copying output out](#copying-output-out) for how the two paths are resolved.
 
 Keep the stopped run container until the job ends, so a `post-command` hook can copy output out of it instead of the step mounting a directory into the container:
 
@@ -172,7 +172,11 @@ The plugin fails the step, rather than silently picking one, when the configurat
 Each `copy-out` entry is `<from>:<to>`, source first, like `volumes`:
 
 - **`from`** is a file or directory in the run container. If it is a symlink, what it points to is copied. A relative path is resolved against the working directory the command ran in: the `workdir` option, the service's `working_dir` or the image's `WORKDIR`, and `/` when none of those is set. `docker cp` by itself resolves it against `/`. An absolute path is used as it is.
-- **`to`** is a path inside the job's working directory, and relative to it. Its parent directories are created. Whatever is already there is replaced, so `to` ends up holding what `from` holds rather than a copy nested inside it. That includes a service that mounts the checkout over its working directory, where `from` and `to` are the same directory. Because it is replaced, `to` can't be absolute, have a `.` or `..` component, or be the working directory itself. A trailing slash says `to` is a directory, so a `from` that turns out to be a file fails the step: to put a file in a directory, name the file in `to`, as in `/out/junit.xml:test-results/junit.xml`.
+- **`to`** is a path inside the job's working directory, and relative to it. Its parent directories are created. Whatever is already there is replaced, so `to` ends up holding what `from` holds rather than a copy nested inside it.
+  - Because it is replaced, `to` can't be absolute, have a `.` or `..` component, or be the working directory itself.
+  - A trailing slash says `to` is a directory, so a `from` that turns out to be a file fails the step. To put a file in a directory, name the file in `to`, as in `/out/junit.xml:test-results/junit.xml`.
+  - A `to` the agent can't remove whole, because it holds a directory the agent can't write to, is left as it was and fails the step, rather than being partly removed.
+  - A service that mounts the checkout over its working directory writes `from` straight into `to`. The plugin finds that `to` already holds the same files, leaves it in place and says so in the log, so the same `copy-out` works whether or not the checkout is mounted. The check reads the files, so it can't recognise output that holds a file the agent can't read or, with GNU `diff`, a symlink that points nowhere on the agent. Where the daemon leaves the container's files owned by root, such an entry fails the step and leaves `to` as it was.
 
 The copy runs as soon as the command exits, whether it passed or failed, and before the plugin's `command` hook returns. Every `post-command` hook therefore sees the output, whatever order the agent runs them in.
 
