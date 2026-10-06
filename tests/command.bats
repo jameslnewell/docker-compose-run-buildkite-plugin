@@ -11,9 +11,6 @@ setup() {
 }
 
 teardown() {
-  # A test that takes write permission away has to give it back, or bats cannot
-  # remove its temp directory.
-  chmod -R u+w "$BATS_TEST_TMPDIR/job" 2>/dev/null || true
   unstub docker 2>/dev/null || true
 }
 
@@ -625,30 +622,111 @@ enter_job_directory() {
   cd "$BATS_TEST_TMPDIR/job"
 }
 
-@test "copy-out copies after the run, and leaves the container for pre-exit" {
-  # A relative `from` is resolved against the run container's working directory;
-  # `docker cp` alone would resolve it against /. The stubs are ordered, so the
-  # copy has to come after the run, and nothing may follow it.
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:backend/coverage"
-  enter_job_directory
+# The compose project and the run container share a name.
+JOB="docker-compose-run-buildkite-plugin-test-job-id"
 
+# Stubs docker up to the end of the run, for a Compose with none of the optional
+# flags, and then for the calls given. $1 is what the run does.
+stub_docker_through_run() {
+  local run="$1"
+  shift
   stub docker \
     "compose --help : echo ''" \
     "compose pull --help : echo 'no such flag'" \
     "compose up --help : echo 'no such flag'" \
     "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /workdir/backend" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
+    "compose -p ${JOB} up --detach --scale test-service=0 test-service : true" \
+    "compose -p ${JOB} run --name ${JOB} test-service : ${run}" \
+    "$@"
+}
+
+@test "copy-out copies a directory's contents to a to that does not exist, after the run" {
+  # A relative `from` is resolved against the run container's working directory;
+  # `docker cp` alone would resolve it against /. `/.` asks for the directory's
+  # contents, and the probe before it is what says `from` is a directory. The
+  # stubs are ordered, so the copy has to come after the run and nothing may
+  # follow it. The copy's stub fails unless backend/ has been created.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:backend/coverage"
+  enter_job_directory
+
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /workdir/backend" \
+    "cp --follow-link ${JOB}:/workdir/backend/coverage/. - : echo tar" \
+    "cp --follow-link ${JOB}:/workdir/backend/coverage/. backend/coverage : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
   assert_line -- "--- :docker: copying out"
+  assert_line "Copied /workdir/backend/coverage to backend/coverage"
   assert_equal "$(cat backend/coverage/report.txt)" "copied"
+  unstub docker
+}
+
+@test "copy-out copies a directory's contents into a to that exists, and keeps what was there" {
+  # Asked for the directory itself, `docker cp` would put it inside `to`, as
+  # coverage/coverage. What is already in `to` is the consumer's to clear.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+  enter_job_directory
+  mkdir coverage
+  echo earlier > coverage/earlier.txt
+
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/coverage/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/coverage/. coverage : echo copied > \"\$4/report.txt\""
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_equal "$(ls -A coverage | tr '\n' ' ')" "earlier.txt report.txt "
+  assert_equal "$(cat coverage/earlier.txt)" "earlier"
+  unstub docker
+}
+
+@test "copy-out copies a file to a path that does not exist" {
+  # Only a directory has contents to ask for, so the first probe comes back
+  # empty and the second says the path is there. The copy's stub fails unless
+  # test-results/ has been created.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="/out/junit.xml:test-results/junit.xml"
+  enter_job_directory
+
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/out/junit.xml/. - : echo 'not a directory' >&2; exit 1" \
+    "cp --follow-link ${JOB}:/out/junit.xml - : echo tar" \
+    "cp --follow-link ${JOB}:/out/junit.xml test-results/junit.xml : echo results > \"\$4\""
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  refute_output --partial "not a directory"
+  assert_line "Copied /out/junit.xml to test-results/junit.xml"
+  assert_equal "$(cat test-results/junit.xml)" "results"
+  unstub docker
+}
+
+@test "copy-out copies a file into a to that is a directory" {
+  # As `cp` does: the file goes in under its own name.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="/out/junit.xml:test-results"
+  enter_job_directory
+  mkdir test-results
+  echo earlier > test-results/earlier.xml
+
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/out/junit.xml/. - : exit 1" \
+    "cp --follow-link ${JOB}:/out/junit.xml - : echo tar" \
+    "cp --follow-link ${JOB}:/out/junit.xml test-results : echo results > \"\$4/junit.xml\""
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_equal "$(ls -A test-results | tr '\n' ' ')" "earlier.xml junit.xml "
   unstub docker
 }
 
@@ -657,16 +735,10 @@ enter_job_directory() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
   enter_job_directory
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : exit 3" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
+  stub_docker_through_run "exit 3" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/coverage/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/coverage/. coverage : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -680,16 +752,10 @@ enter_job_directory() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
   enter_job_directory
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo ''" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/coverage * : mkdir \"\$4\""
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo ''" \
+    "cp --follow-link ${JOB}:/coverage/. - : echo tar" \
+    "cp --follow-link ${JOB}:/coverage/. coverage : mkdir \"\$4\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -702,16 +768,10 @@ enter_job_directory() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="/var/reports:reports"
   enter_job_directory
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/var/reports - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/var/reports * : mkdir \"\$4\""
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/var/reports/. - : echo tar" \
+    "cp --follow-link ${JOB}:/var/reports/. reports : mkdir \"\$4\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -724,256 +784,15 @@ enter_job_directory() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="./coverage:./backend/coverage/"
   enter_job_directory
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/coverage/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/coverage/. backend/coverage/ : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
-  assert_line "Copied /app/coverage to backend/coverage"
   assert_equal "$(cat backend/coverage/report.txt)" "copied"
-  unstub docker
-}
-
-@test "copy-out refuses to put a file at a to written as a directory" {
-  # `to` is replaced, never copied into, so the file would take the place of the
-  # directory and everything in it, where `cp` would have put the file inside.
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="/out/junit.xml:test-results/"
-  enter_job_directory
-  mkdir test-results
-  echo earlier > test-results/earlier.xml
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/junit.xml - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/junit.xml * : echo results > \"\$4\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_failure 1
-  assert_line "Error: test-results/ ends in / but /out/junit.xml is a file. Name the file in <to>, as in test-results/junit.xml"
-  assert_equal "$(ls -A)" "test-results"
-  assert_equal "$(ls -A test-results)" "earlier.xml"
-  unstub docker
-}
-
-@test "copy-out replaces an existing to instead of copying into it" {
-  # `docker cp` into a directory that exists nests the copy inside it.
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
-  enter_job_directory
-  mkdir coverage
-  echo stale > coverage/stale.txt
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_success
-  assert_equal "$(find coverage -type f)" "coverage/report.txt"
-  unstub docker
-}
-
-@test "copy-out leaves a to that already holds the same files in place" {
-  # What a checkout mounted over the container's working directory gives: `from`
-  # and `to` are one directory, which the container may have written as root, so
-  # an agent that isn't root could not remove it to replace it.
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
-  enter_job_directory
-  mkdir coverage
-  echo copied > coverage/report.txt
-  local inode_before
-  inode_before="$(ls -di coverage)"
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_success
-  assert_output --partial "Skipped /app/coverage: coverage already holds the same files"
-  assert_equal "$(ls -di coverage)" "$inode_before"
-  assert_equal "$(ls -A)" "coverage"
-  unstub docker
-}
-
-@test "copy-out replaces a file at to with a directory that holds a file of the same name and content" {
-  # `diff` between a directory and a file compares the file with the directory's
-  # entry of that name, and would call these two the same.
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:lcov.info"
-  enter_job_directory
-  echo covered > lcov.info
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_success
-  assert_line "Copied /app/coverage to lcov.info"
-  assert_equal "$(cat lcov.info/lcov.info)" "covered"
-  unstub docker
-}
-
-@test "copy-out replaces a directory at to with a file, whatever the directory holds" {
-  # The copy is staged as a file named `copy`, which is the entry `diff` would
-  # compare it with inside the directory.
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="/out/report.txt:reports"
-  enter_job_directory
-  mkdir reports
-  echo report > reports/copy
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/report.txt - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/report.txt * : echo report > \"\$4\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_success
-  assert_line "Copied /out/report.txt to reports"
-  [[ -f reports ]]
-  assert_equal "$(cat reports)" "report"
-  unstub docker
-}
-
-@test "copy-out leaves a to it cannot remove whole as it was" {
-  # rm -rf would remove lcov.info and then fail on html/, leaving part of to and
-  # none of the copy. Root can remove anything, so only a non-root run gets here.
-  [[ "$(id -u)" -ne 0 ]] || skip "root can remove any to"
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
-  enter_job_directory
-  mkdir -p coverage/html
-  echo earlier > coverage/lcov.info
-  echo earlier > coverage/html/index.html
-  chmod a-w coverage/html
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_failure 1
-  assert_line "Error: could not copy /app/coverage out of the run container to coverage"
-  assert_line "coverage holds a directory this agent cannot write to, so it was left as it was."
-  assert_equal "$(cat coverage/lcov.info)" "earlier"
-  assert_equal "$(cat coverage/html/index.html)" "earlier"
-  assert_equal "$(ls -A)" "coverage"
-  unstub docker
-}
-
-@test "copy-out leaves a to whose directory it cannot write to as it was" {
-  # rm -rf would empty reports/coverage and then fail to remove it.
-  [[ "$(id -u)" -ne 0 ]] || skip "root can remove any to"
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:reports/coverage"
-  enter_job_directory
-  mkdir -p reports/coverage
-  echo earlier > reports/coverage/lcov.info
-  chmod a-w reports
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_failure 1
-  assert_line "reports/coverage holds a directory this agent cannot write to, so it was left as it was."
-  assert_equal "$(cat reports/coverage/lcov.info)" "earlier"
-  unstub docker
-}
-
-@test "copy-out replaces an empty directory it cannot write to" {
-  # The mount point docker leaves in the checkout for a volume is root's and
-  # empty, and goes with its parent like any empty directory.
-  [[ "$(id -u)" -ne 0 ]] || skip "root can remove any to"
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="node_modules:node_modules"
-  enter_job_directory
-  mkdir node_modules
-  chmod a-w node_modules
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/node_modules - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/node_modules * : mkdir \"\$4\" && echo installed > \"\$4/package.json\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_success
-  assert_equal "$(cat node_modules/package.json)" "installed"
   unstub docker
 }
 
@@ -986,21 +805,17 @@ enter_job_directory() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
   enter_job_directory
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo 'Could not find the file' >&2; exit 1" \
-    "cp docker-compose-run-buildkite-plugin-test-job-id:/ - : echo tar"
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/coverage/. - : echo 'Could not find the file' >&2; exit 1" \
+    "cp --follow-link ${JOB}:/app/coverage - : echo 'Could not find the file' >&2; exit 1" \
+    "cp ${JOB}:/ - : echo tar"
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
-  assert_output --partial "Skipped /app/coverage: not found in the run container"
+  assert_line "Skipped /app/coverage: not found in the run container"
+  refute_output --partial "Could not find the file"
   [[ ! -e coverage ]]
   unstub docker
 }
@@ -1013,54 +828,38 @@ enter_job_directory() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
   enter_job_directory
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo 'No such container' >&2; exit 1" \
-    "cp docker-compose-run-buildkite-plugin-test-job-id:/ - : echo 'No such container' >&2; exit 1" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : echo 'No such container' >&2; exit 1"
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/coverage/. - : exit 1" \
+    "cp --follow-link ${JOB}:/app/coverage - : exit 1" \
+    "cp ${JOB}:/ - : exit 1" \
+    "cp --follow-link ${JOB}:/app/coverage coverage : echo 'No such container' >&2; exit 1"
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_failure 1
   refute_output --partial "Skipped"
   assert_output --partial "No such container"
-  assert_output --partial "Error: could not copy /app/coverage out of the run container"
+  assert_line "Error: could not copy /app/coverage out of the run container to coverage"
   unstub docker
 }
 
-@test "copy-out fails the hook when a copy fails, and leaves the existing to alone" {
+@test "copy-out fails the hook when a copy fails" {
   unset BUILDKITE_COMMAND
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
   enter_job_directory
-  mkdir coverage
-  echo earlier > coverage/earlier.txt
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo partial > \"\$4/report.txt\"; echo 'no space left on device' >&2; exit 1"
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/coverage/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/coverage/. coverage : echo 'no space left on device' >&2; exit 1"
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_failure 1
   assert_output --partial "no space left on device"
-  assert_output --partial "Error: could not copy /app/coverage out of the run container"
-  # docker cp had written part of the copy when it failed. None of it reaches to.
-  assert_equal "$(ls -A coverage)" "earlier.txt"
-  assert_equal "$(cat coverage/earlier.txt)" "earlier"
-  assert_equal "$(ls -A)" "coverage"
+  assert_line "^^^ +++"
+  assert_line "Error: could not copy /app/coverage out of the run container to coverage"
   unstub docker
 }
 
@@ -1069,16 +868,10 @@ enter_job_directory() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
   enter_job_directory
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : exit 3" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : echo \"write \$4/report.txt: no space left on device\" >&2; exit 1"
+  stub_docker_through_run "exit 3" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/coverage/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/coverage/. coverage : echo 'no space left on device' >&2; exit 1"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1086,156 +879,68 @@ enter_job_directory() {
   unstub docker
 }
 
-@test "copy-out keeps the command's exit status when it has nowhere to stage a copy" {
-  # A job directory that can't be written to must not end the hook on the spot
-  # with mktemp's status.
+@test "copy-out fails an entry whose to has nowhere to go, and carries on" {
+  # reports is a file, so reports/ can't be created for the copy to go in. That
+  # must not end the hook on the spot with mkdir's status: the next entry is
+  # still copied, and the command's status is still the one the hook exits with.
   unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
-  enter_job_directory
-  mkdir "$BATS_TEST_TMPDIR/shims"
-  printf '#!/bin/sh\necho "mktemp: failed to create directory" >&2\nexit 1\n' > "$BATS_TEST_TMPDIR/shims/mktemp"
-  chmod +x "$BATS_TEST_TMPDIR/shims/mktemp"
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : exit 3" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar"
-
-  run env PATH="$BATS_TEST_TMPDIR/shims:$PATH" "$PLUGIN_PATH/hooks/command"
-
-  assert_failure 3
-  assert_output --partial "Error: could not copy /app/coverage out of the run container to coverage"
-  unstub docker
-}
-
-@test "copy-out copies the remaining entries after one fails" {
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_1="docs:site/docs"
-  enter_job_directory
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : echo \"write \$4/report.txt: no space left on device\" >&2; exit 1" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/docs - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/docs * : mkdir \"\$4\" && echo copied > \"\$4/index.html\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_failure 1
-  assert_equal "$(cat site/docs/index.html)" "copied"
-  unstub docker
-}
-
-@test "copy-out stages the copy inside the job's working directory" {
-  # So that putting it in place is a rename: the system's temporary directory is
-  # often another filesystem, and a small one. The stub records where docker was
-  # told to write.
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
-  enter_job_directory
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo \"\$4\" > \"\$4/staged-at.txt\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_success
-  assert_regex "$(cat coverage/staged-at.txt)" "^${PWD}/\.docker-compose-run-copy-out\.[A-Za-z0-9]+/copy$"
-  unstub docker
-}
-
-@test "copy-out leaves its own scratch directory out of a copy that contains it" {
-  # A `from` that holds the job's working directory, through a mount, holds the
-  # scratch directory the copy is being staged in. $4 is <scratch>/copy.
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0=".:snapshot"
-  enter_job_directory
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/. - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/. * : mkdir -p \"\$4/\$(basename \"\$(dirname \"\$4\")\")/copy\" && echo built > \"\$4/app.js\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_success
-  assert_equal "$(ls -A snapshot)" "app.js"
-  unstub docker
-}
-
-@test "copy-out leaves nothing of its own in the job's working directory" {
-  # The copy is staged in a scratch directory inside the job's working directory,
-  # which has to be gone whether the entry was copied, skipped or failed.
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:reports/coverage"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_1="docs:docs"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_2="dist:dist"
+  enter_job_directory
+  echo earlier > reports
+
+  stub_docker_through_run "exit 3" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/coverage/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/docs/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/docs/. docs : mkdir \"\$4\" && echo copied > \"\$4/index.html\""
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_failure 3
+  assert_line "Error: could not copy /app/coverage out of the run container to reports/coverage"
+  assert_equal "$(cat reports)" "earlier"
+  assert_equal "$(cat docs/index.html)" "copied"
+  unstub docker
+}
+
+@test "copy-out attempts every entry after one fails" {
+  # One that fails, one that is missing and one that is copied, in that order.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="dist:dist"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_1="docs:docs"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_2="coverage:coverage"
   enter_job_directory
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\"" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/docs - : exit 1" \
-    "cp docker-compose-run-buildkite-plugin-test-job-id:/ - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/dist - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/dist * : mkdir \"\$4\" && echo \"write \$4/bundle.js: no space left on device\" >&2; exit 1"
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/dist/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/dist/. dist : echo 'no space left on device' >&2; exit 1" \
+    "cp --follow-link ${JOB}:/app/docs/. - : exit 1" \
+    "cp --follow-link ${JOB}:/app/docs - : exit 1" \
+    "cp ${JOB}:/ - : echo tar" \
+    "cp --follow-link ${JOB}:/app/coverage/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/coverage/. coverage : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_failure 1
+  assert_line "Error: could not copy /app/dist out of the run container to dist"
+  assert_line "Skipped /app/docs: not found in the run container"
+  assert_line "Copied /app/coverage to coverage"
   assert_equal "$(ls -A)" "coverage"
   unstub docker
 }
 
 @test "copy-out keeps the command's exit status when the run left no container" {
   # A run that fails before creating its container, such as one naming a service
-  # the compose file doesn't have, leaves nothing to copy out of or remove.
+  # the compose file doesn't have, leaves nothing to copy out of.
   unset BUILDKITE_COMMAND
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
   enter_job_directory
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : exit 2" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo 'No such container' >&2; exit 1"
+  stub_docker_through_run "exit 2" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo 'No such container' >&2; exit 1"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1249,19 +954,13 @@ enter_job_directory() {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
   enter_job_directory
 
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo 'No such container' >&2; exit 1"
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo 'No such container' >&2; exit 1"
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_failure 1
-  assert_output --partial "Error: there is no run container to copy out of"
+  assert_line "Error: there is no run container to copy out of"
   unstub docker
 }
 

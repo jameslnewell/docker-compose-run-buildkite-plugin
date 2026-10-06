@@ -42,10 +42,3 @@ if docker container inspect "$CONTAINER" >/dev/null 2>&1; then
 fi
 docker compose -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" down --volumes --remove-orphans || true
 { set +x; } 2>/dev/null
-
-# The command hook removes its own scratch directory, unless it is killed in the
-# middle of a copy: a cancelled or timed-out job. A step that skips the checkout
-# never has its working directory cleaned, so the leftovers would pile up there.
-if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT"; then
-  rm -rf "${COPY_OUT_SCRATCH}".* || true
-fi

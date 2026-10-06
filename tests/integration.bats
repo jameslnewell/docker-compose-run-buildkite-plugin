@@ -19,12 +19,7 @@ EOF
 
 teardown() {
   cd /
-  # A service that mounts the job directory writes into it as root, which on
-  # Linux leaves files only root can remove.
-  if ! rm -rf "$TEST_TMPDIR" 2>/dev/null; then
-    docker run --rm -v "$TEST_TMPDIR:/job" busybox:latest chown -R "$(id -u):$(id -g)" /job
-    rm -rf "$TEST_TMPDIR"
-  fi
+  rm -rf "$TEST_TMPDIR"
   remove_job "${BUILDKITE_JOB_ID}"
   remove_job "${BUILDKITE_JOB_ID}-a"
   remove_job "${BUILDKITE_JOB_ID}-b"
@@ -277,6 +272,7 @@ EOF
 
   [[ $status -eq 0 ]]
   [[ "$(cat backend/coverage/report.txt)" == "report copied" ]]
+  [[ ! -e backend/coverage/coverage ]]
 
   local volume
   volume="$(docker container inspect --format '{{range .Mounts}}{{if eq .Destination "/scratch"}}{{.Name}}{{end}}{{end}}' "$container")"
@@ -290,11 +286,11 @@ EOF
   [[ $status -ne 0 ]]
 }
 
-@test "integration: copy-out replaces what is at to with what a failing command wrote, and keeps its exit status" {
+@test "integration: copy-out merges what a failing command wrote into an existing to, and keeps its exit status" {
   skip_if_no_docker
   write_workspace_compose_file
   mkdir coverage
-  echo stale > coverage/stale.txt
+  echo earlier > coverage/earlier.txt
 
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
@@ -305,9 +301,10 @@ EOF
   run bash "$PLUGIN_PATH/hooks/command"
 
   [[ $status -eq 3 ]]
+  # `docker cp` of the directory itself would have nested it as coverage/coverage.
+  [[ "$(ls -A coverage | tr '\n' ' ')" == "earlier.txt report.txt " ]]
   [[ "$(cat coverage/report.txt)" == "report failed" ]]
-  [[ ! -e coverage/stale.txt ]]
-  [[ ! -e coverage/coverage ]]
+  [[ "$(cat coverage/earlier.txt)" == "earlier" ]]
 }
 
 @test "integration: copy-out skips a from the command never wrote and copies the other entries" {
@@ -325,6 +322,44 @@ EOF
   [[ "$output" == *"Skipped /workdir/backend/docs: not found in the run container"* ]]
   [[ ! -e docs ]]
   [[ "$(cat reports/absolute.txt)" == "absolute" ]]
+}
+
+@test "integration: copy-out copies a file to a new path, and into an existing directory under its own name" {
+  skip_if_no_docker
+  write_workspace_compose_file
+  mkdir results
+  echo earlier > results/earlier.txt
+
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="/out/report.txt:reports/nested/absolute.txt"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_1="/out/report.txt:results"
+
+  run bash "$PLUGIN_PATH/hooks/command"
+
+  [[ $status -eq 0 ]]
+  [[ "$(cat reports/nested/absolute.txt)" == "absolute" ]]
+  [[ "$(ls -A results | tr '\n' ' ')" == "earlier.txt report.txt " ]]
+  [[ "$(cat results/report.txt)" == "absolute" ]]
+}
+
+@test "integration: copy-out fails the step when to cannot take the copy, and still copies the next entry" {
+  skip_if_no_docker
+  write_workspace_compose_file
+  # A directory can't be copied over a file.
+  echo earlier > coverage
+
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_1="/out/report.txt:report.txt"
+
+  run bash "$PLUGIN_PATH/hooks/command"
+
+  [[ $status -eq 1 ]]
+  [[ "$output" == *"Error: could not copy /workdir/backend/coverage out of the run container to coverage"* ]]
+  [[ "$(cat coverage)" == "earlier" ]]
+  [[ "$(cat report.txt)" == "absolute" ]]
 }
 
 @test "integration: pre-exit removes the run container of a hook killed mid-command" {
@@ -396,34 +431,7 @@ EOF
   [[ "$(cat "$TEST_TMPDIR/b/coverage/report.txt")" == "report b" ]]
 }
 
-@test "integration: copy-out leaves output in place when the checkout is mounted over the working directory" {
-  skip_if_no_docker
-
-  # `from` and `to` are the same directory here: the service writes its report
-  # straight into the job directory. Copying into `to` would nest a second copy
-  # inside it, and removing `to` first would delete the report.
-  cat > "$TEST_TMPDIR/docker-compose.yml" <<'EOF'
-services:
-  test:
-    image: busybox:latest
-    working_dir: /workdir
-    volumes:
-      - .:/workdir
-    command: sh -c 'mkdir -p coverage && echo "report mounted" > coverage/report.txt'
-EOF
-
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
-
-  run bash "$PLUGIN_PATH/hooks/command"
-
-  [[ $status -eq 0 ]]
-  [[ "$(cat coverage/report.txt)" == "report mounted" ]]
-  [[ ! -e coverage/coverage ]]
-}
-
-@test "integration: copy-out copies what a symlinked from points to, not the link" {
+@test "integration: copy-out copies what a symlinked from points to, and skips a link that points nowhere" {
   skip_if_no_docker
 
   # `docker cp` copies a symlink as a symlink unless told to follow it, and a
@@ -433,42 +441,27 @@ services:
   test:
     image: busybox:latest
     working_dir: /workdir
-    command: sh -c 'mkdir -p /real && echo "report linked" > /real/report.txt && ln -s /real coverage'
+    command: >
+      sh -c 'mkdir -p /real
+      && echo "report linked" > /real/report.txt
+      && ln -s /real coverage
+      && ln -s /real/report.txt latest.txt
+      && ln -s /nowhere dangling'
 EOF
 
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_1="latest.txt:latest.txt"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_2="dangling:dangling"
 
   run bash "$PLUGIN_PATH/hooks/command"
 
   [[ $status -eq 0 ]]
-  [[ ! -L coverage ]]
+  [[ -d coverage && ! -L coverage ]]
   [[ "$(cat coverage/report.txt)" == "report linked" ]]
-}
-
-@test "integration: copy-out of a from that contains the working directory leaves its own scratch copy out" {
-  skip_if_no_docker
-
-  # /workdir is the job's working directory, where the copy is staged, so the
-  # scratch directory is part of what docker copies. The hook takes it back out.
-  cat > "$TEST_TMPDIR/docker-compose.yml" <<'EOF'
-services:
-  test:
-    image: busybox:latest
-    working_dir: /workdir
-    volumes:
-      - .:/workdir
-    command: sh -c 'echo built > app.js'
-EOF
-
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0=".:snapshot"
-
-  run bash "$PLUGIN_PATH/hooks/command"
-
-  [[ $status -eq 0 ]]
-  [[ "$(ls -A snapshot | sort | tr '\n' ' ')" == "app.js docker-compose.yml " ]]
-  [[ "$(cat snapshot/app.js)" == "built" ]]
+  [[ -f latest.txt && ! -L latest.txt ]]
+  [[ "$(cat latest.txt)" == "report linked" ]]
+  [[ "$output" == *"Skipped /workdir/dangling: not found in the run container"* ]]
+  [[ ! -e dangling && ! -L dangling ]]
 }

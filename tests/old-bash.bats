@@ -47,8 +47,8 @@ case "$*" in
 esac
 echo "DOCKER: $*"
 for a in "$@"; do echo "ARG=<$a>"; done
-# copy-out moves what `docker cp` wrote into place, so there has to be something.
-# `cp <path> -` asks for a tar stream instead, which the output above stands in for.
+# `cp <path> -` asks for a tar stream, which the output above stands in for.
+# Anything else is the copy, which docker only makes into a directory that exists.
 if [ "$1 $2" = "cp --follow-link" ] && [ "$4" != "-" ]; then
   mkdir "$4"
 fi
@@ -150,7 +150,7 @@ run_hook_on_bash() {
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
-  assert_line --partial "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/.docker-compose-run-copy-out."
+  assert_line "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage/. backend/coverage"
   refute_line --partial "DOCKER: rm "
   assert_line "backend/coverage"
 }
@@ -164,7 +164,7 @@ run_hook_on_bash() {
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
-  assert_line --partial "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/.docker-compose-run-copy-out."
+  assert_line "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage/. backend/coverage"
   refute_line --partial "DOCKER: rm "
   assert_line "backend/coverage"
 }
