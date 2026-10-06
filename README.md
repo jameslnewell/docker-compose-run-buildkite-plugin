@@ -130,7 +130,7 @@ fi
 | `entrypoint` | string | the service's | Override the service's entrypoint. Any value — including `""` — suppresses the *default* shell wrapping; setting `shell` explicitly turns it back on. Matches the official `docker` plugin. Use `""` to clear an entrypoint while passing `command` args directly. |
 | `environment` | array | — | Environment variables as `KEY=VALUE`, passed as `-e`. |
 | `volumes` | array | — | Volume mounts as `host:container`, passed as `-v`. Host paths of `.` or beginning with `./` are resolved against `pwd`, so `./src:/app/src` mounts a directory from the checkout. |
-| `copy-out` | array | — | Paths to copy out of the run container when the command exits, as `<from>:<to>`. A relative `from` is resolved against the container's working directory. `to` is resolved against the job's working directory, and replaced if it exists. See [Copying output out](#copying-output-out). |
+| `copy-out` | array | — | Paths to copy out of the run container when the command exits, as `<from>:<to>`. A directory is copied as its contents into `to`, an existing `to` is merged into rather than cleared, and a `from` that doesn't exist is skipped. See [Copying output out](#copying-output-out). |
 | `propagate-aws` | boolean | `false` | Propagate `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. |
 | `propagate-buildkite-environment` | boolean | `false` | Propagate `CI`, `BUILDKITE` and every `BUILDKITE_*` variable from the agent. |
 
@@ -161,15 +161,15 @@ The plugin fails the step, rather than silently picking one, when the configurat
 Each `copy-out` entry is `<from>:<to>`, source first, like `volumes`:
 
 - **`from`** is a file or directory in the run container. If it is a symlink, what it points to is copied. A relative path is resolved against the working directory the command ran in: the `workdir` option, the service's `working_dir` or the image's `WORKDIR`, and `/` when none of those is set. `docker cp` by itself resolves it against `/`. An absolute path is used as it is.
-- **`to`** is a path inside the job's working directory, and relative to it. Its parent directories are created. Whatever is already there is replaced, so `to` ends up holding what `from` holds rather than a copy nested inside it.
-  - Because it is replaced, `to` can't be absolute, have a `.` or `..` component, or be the working directory itself.
-  - A trailing slash says `to` is a directory, so a `from` that turns out to be a file fails the step. To put a file in a directory, name the file in `to`, as in `/out/junit.xml:test-results/junit.xml`.
-  - A `to` the agent can't remove whole, because it holds a directory the agent can't write to, is left as it was and fails the step, rather than being partly removed.
-  - A service that mounts the checkout over its working directory writes `from` straight into `to`. The plugin finds that `to` already holds the same files, leaves it in place and says so in the log, so the same `copy-out` works whether or not the checkout is mounted. The check reads the files, so it can't recognise output that holds a file the agent can't read or, with GNU `diff`, a symlink that points nowhere on the agent. Where the daemon leaves the container's files owned by root, such an entry fails the step and leaves `to` as it was.
+- **`to`** is a path on the agent. A relative one is resolved against the job's working directory, and `.` is that directory. Its parent directories are created.
+
+A directory is copied as its contents, so `coverage:backend/coverage` puts what `coverage` holds into `backend/coverage`, whether or not that exists, and never as `backend/coverage/coverage`. An existing `to` is merged into, not cleared: what the copy brings replaces what has the same name and everything else stays, so a step that needs a clean `to` removes it first. A file is copied to `to`, or into it under its own name when `to` is a directory, as `cp` does.
 
 The copy runs as soon as the command exits, whether it passed or failed, and before the plugin's `command` hook returns. Every `post-command` hook therefore sees the output, whatever order the agent runs them in.
 
-The step exits with the command's status. A `from` that doesn't exist is logged and skipped, so a command that wrote nothing doesn't fail the step. Any other failure to copy does. An entry that isn't `<from>:<to>`, or whose `to` isn't allowed, fails the step before anything is started.
+The step exits with the command's status. A `from` that doesn't exist is logged and skipped, so a command that wrote nothing doesn't fail the step. Any other failure to copy does. An entry that isn't `<from>:<to>` fails the step before anything is started.
+
+Don't list a path that a bind mount already puts on the agent, such as output written under a checkout mounted over the service's working directory: `from` and `to` are then the same files. On a Linux agent the container has usually written them as root, and copying them onto themselves fails the step with a permission error.
 
 Only the run container can be copied from, not the services it depends on.
 
@@ -181,7 +181,7 @@ Everything runs under a compose project named `docker-compose-run-buildkite-plug
 2. **Up** — `docker compose up --detach --scale <service>=0 <service>` brings up the target's `depends_on` tree without starting the target itself. `--pull never` is added when the pull phase already fetched the images.
 3. **Run** — `docker compose run --name docker-compose-run-buildkite-plugin-<job id> <service>` with the configured overrides, again adding `--pull never` when the images are already local. There is no `--rm`, so the stopped container outlives the command.
 4. **Copy** — only with `copy-out`: `docker cp` copies each entry out of the stopped run container.
-5. **Cleanup** — the `pre-exit` hook writes the project's logs to `docker-compose-run-buildkite-plugin.log`, uploads it as a Buildkite artifact, removes the run container with its anonymous volumes (`docker compose down` removes the container, but leaves those when no `file` is given), then runs `docker compose down --volumes --remove-orphans`. With `copy-out` it also removes any scratch directory a killed `command` hook left in the working directory.
+5. **Cleanup** — the `pre-exit` hook writes the project's logs to `docker-compose-run-buildkite-plugin.log`, uploads it as a Buildkite artifact, removes the run container with its anonymous volumes (`docker compose down` removes the container, but leaves those when no `file` is given), then runs `docker compose down --volumes --remove-orphans`.
 
 Each phase is its own log group, so you can fold and expand them independently and see exactly where time is spent.
 

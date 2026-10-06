@@ -23,7 +23,7 @@ Options not defined in the Compose spec follow either the Docker CLI's naming or
 | `file` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE` | Compose file(s), matching `docker compose -f` |
 | `workdir` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_WORKDIR` | Working directory in the container |
 | `shell` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL` | Shell used to wrap the step's command |
-| `copy-out` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT` | Copy paths out of the run container when the command exits, as `<from>:<to>` |
+| `copy-out` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT` | Copy paths out of the run container when the command exits, as `<from>:<to>`. A directory's contents go into `to`, an existing `to` is merged into, and a missing `from` is skipped |
 | `propagate-aws` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_AWS` | Propagate AWS credential and region env vars |
 | `propagate-buildkite-environment` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_BUILDKITE_ENVIRONMENT` | Propagate `CI`, `BUILDKITE` and `BUILDKITE_*` |
 
