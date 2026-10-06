@@ -307,6 +307,22 @@ EOF
   [[ "$(cat coverage/earlier.txt)" == "earlier" ]]
 }
 
+@test "integration: copy-out with a to of . copies a directory's contents into the working directory" {
+  skip_if_no_docker
+  write_workspace_compose_file
+
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT_0="REPORT=here"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:."
+
+  run bash "$PLUGIN_PATH/hooks/command"
+
+  [[ $status -eq 0 ]]
+  [[ "$(ls -A | tr '\n' ' ')" == "docker-compose.yml report.txt " ]]
+  [[ "$(cat report.txt)" == "report here" ]]
+}
+
 @test "integration: copy-out skips a from the command never wrote and copies the other entries" {
   skip_if_no_docker
   write_workspace_compose_file

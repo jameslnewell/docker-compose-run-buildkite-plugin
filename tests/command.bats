@@ -779,7 +779,7 @@ stub_docker_through_run() {
   unstub docker
 }
 
-@test "copy-out takes a leading ./ on either side and a trailing slash on to" {
+@test "copy-out strips a leading ./ from from, and hands to to docker cp as written" {
   unset BUILDKITE_COMMAND
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="./coverage:./backend/coverage/"
   enter_job_directory
@@ -787,12 +787,54 @@ stub_docker_through_run() {
   stub_docker_through_run "true" \
     "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
     "cp --follow-link ${JOB}:/app/coverage/. - : echo tar" \
-    "cp --follow-link ${JOB}:/app/coverage/. backend/coverage/ : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
+    "cp --follow-link ${JOB}:/app/coverage/. ./backend/coverage/ : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
+  assert_line "Copied /app/coverage to ./backend/coverage/"
   assert_equal "$(cat backend/coverage/report.txt)" "copied"
+  unstub docker
+}
+
+@test "copy-out copies a directory's contents into the job's working directory when to is ." {
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="dist:."
+  enter_job_directory
+  echo earlier > package.json
+
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/dist/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/dist/. . : echo built > \"\$4/app.js\""
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_line "Copied /app/dist to ."
+  assert_equal "$(ls -A | tr '\n' ' ')" "app.js package.json "
+  unstub docker
+}
+
+@test "copy-out copies to a to outside the job's working directory" {
+  # Nothing at `to` is removed any more, so it no longer has to stay inside.
+  unset BUILDKITE_COMMAND
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:${BATS_TEST_TMPDIR}/absolute/coverage"
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_1="docs:../relative/docs"
+  enter_job_directory
+
+  stub_docker_through_run "true" \
+    "container inspect --format '{{.Config.WorkingDir}}' ${JOB} : echo /app" \
+    "cp --follow-link ${JOB}:/app/coverage/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/coverage/. ${BATS_TEST_TMPDIR}/absolute/coverage : mkdir \"\$4\" && echo copied > \"\$4/report.txt\"" \
+    "cp --follow-link ${JOB}:/app/docs/. - : echo tar" \
+    "cp --follow-link ${JOB}:/app/docs/. ../relative/docs : mkdir \"\$4\" && echo copied > \"\$4/index.html\""
+
+  run "$PLUGIN_PATH/hooks/command"
+
+  assert_success
+  assert_equal "$(cat "$BATS_TEST_TMPDIR/absolute/coverage/report.txt")" "copied"
+  assert_equal "$(cat "$BATS_TEST_TMPDIR/relative/docs/index.html")" "copied"
   unstub docker
 }
 
@@ -979,7 +1021,7 @@ assert_copy_out_rejected() {
   run env PATH="$BATS_TEST_TMPDIR/shims:$PATH" "$PLUGIN_PATH/hooks/command"
 
   assert_failure 1
-  assert_line --index 0 --partial "+++ Error: "
+  assert_line --index 0 "+++ Error: Each copy-out entry must be \"<from>:<to>\", a path in the container and a path in the job's working directory. Got \"$1\"."
   [[ ! -e "$BATS_TEST_TMPDIR/docker-called" ]]
 }
 
@@ -997,34 +1039,4 @@ assert_copy_out_rejected() {
 
 @test "copy-out rejects an entry with an empty to" {
   assert_copy_out_rejected "coverage:"
-}
-
-# Replacing `to` removes whatever is there, so it has to stay inside the job's
-# working directory.
-@test "copy-out rejects a to that is the job's working directory" {
-  assert_copy_out_rejected "coverage:."
-}
-
-# `./` and `/` are the working directory and the root with nothing left once the
-# prefix and the trailing slashes are stripped. Accepted, either would have the
-# copy remove the job's working directory.
-@test "copy-out rejects a to of ./" {
-  assert_copy_out_rejected "coverage:./"
-}
-
-@test "copy-out rejects a to of /" {
-  assert_copy_out_rejected "coverage:/"
-}
-
-@test "copy-out rejects a to that leaves the job's working directory" {
-  assert_copy_out_rejected "coverage:backend/../../coverage"
-}
-
-@test "copy-out rejects a to with a . component, and says so" {
-  assert_copy_out_rejected "coverage:backend/./coverage"
-  assert_line --partial 'have a "." or ".." component'
-}
-
-@test "copy-out rejects an absolute to" {
-  assert_copy_out_rejected "coverage:/tmp/coverage"
 }
