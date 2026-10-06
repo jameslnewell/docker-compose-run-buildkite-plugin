@@ -106,19 +106,9 @@ steps:
 
 `copy-out` is not in older releases, so pin one that includes it. An older release copies nothing. See [Copying output out](#copying-output-out) for how the two paths are resolved.
 
-Keep the stopped run container until the job ends, so a `post-command` hook can copy output out of it instead of the step mounting a directory into the container:
+The stopped run container, named `docker-compose-run-buildkite-plugin-<job id>`, is kept until the `pre-exit` hook removes it, so a `post-command` hook of your own can copy out of it too. Releases up to `v0.16.0` remove the container when the command exits (`v0.16.0` kept it with `rm: false`), and the guard below then skips the copy without failing the step.
 
-```yaml
-steps:
-  - plugins:
-      - jameslnewell/docker-compose-run#v0.14.1:
-          service: test
-          rm: false
-```
-
-`rm` is newer than `v0.15.0`, so pin a release that includes it. An older release still removes the container at exit, and the guard below then skips the copy without failing the step.
-
-A repository hook runs for every job in the pipeline, so guard it on the container existing. Otherwise it fails steps that don't use this plugin, that keep the default `rm: true`, or that failed before the run started:
+A repository hook runs for every job in the pipeline, so guard it on the container existing. Otherwise it fails steps that don't use this plugin, or that failed before the run started:
 
 ```bash
 # .buildkite/hooks/post-command
@@ -140,12 +130,11 @@ fi
 | `entrypoint` | string | the service's | Override the service's entrypoint. Any value — including `""` — suppresses the *default* shell wrapping; setting `shell` explicitly turns it back on. Matches the official `docker` plugin. Use `""` to clear an entrypoint while passing `command` args directly. |
 | `environment` | array | — | Environment variables as `KEY=VALUE`, passed as `-e`. |
 | `volumes` | array | — | Volume mounts as `host:container`, passed as `-v`. Host paths of `.` or beginning with `./` are resolved against `pwd`, so `./src:/app/src` mounts a directory from the checkout. |
-| `rm` | boolean | `true` | Remove the run container when the command exits, as `--rm`. Set to `false` to keep the stopped container, named `docker-compose-run-buildkite-plugin-<job id>`, until the `pre-exit` hook removes it, so a `post-command` hook can `docker cp` out of it. Matches the official `docker-compose` plugin's `rm`. |
 | `copy-out` | array | — | Paths to copy out of the run container when the command exits, as `<from>:<to>`. A relative `from` is resolved against the container's working directory. `to` is resolved against the job's working directory, and replaced if it exists. See [Copying output out](#copying-output-out). |
 | `propagate-aws` | boolean | `false` | Propagate `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`. |
 | `propagate-buildkite-environment` | boolean | `false` | Propagate `CI`, `BUILDKITE` and every `BUILDKITE_*` variable from the agent. |
 
-`additionalProperties` is disabled, so an unrecognised or misspelled option fails validation rather than being silently ignored.
+`additionalProperties` is disabled, so an unrecognised or misspelled option fails validation rather than being silently ignored. That now includes `rm`, which only `v0.16.0` had: the run container is always kept until `pre-exit`, as `rm: false` kept it. A step that still sets `rm` fails on agents that validate plugin configuration, and the option is ignored on the rest.
 
 ### Commands and shells
 
@@ -182,8 +171,6 @@ The copy runs as soon as the command exits, whether it passed or failed, and bef
 
 The step exits with the command's status. A `from` that doesn't exist is logged and skipped, so a command that wrote nothing doesn't fail the step. Any other failure to copy does. An entry that isn't `<from>:<to>`, or whose `to` isn't allowed, fails the step before anything is started.
 
-With `copy-out` the run goes without `--rm`, because the copy needs the stopped container. The plugin removes the container and its anonymous volumes once the copy is done, unless `rm` is `false`, which keeps it until `pre-exit` as usual.
-
 Only the run container can be copied from, not the services it depends on.
 
 ## How it works
@@ -192,8 +179,8 @@ Everything runs under a compose project named `docker-compose-run-buildkite-plug
 
 1. **Pull** — `docker compose pull --include-deps <service>` fetches only the target service and its dependency tree. Skipped on older Compose that lacks `--include-deps`.
 2. **Up** — `docker compose up --detach --scale <service>=0 <service>` brings up the target's `depends_on` tree without starting the target itself. `--pull never` is added when the pull phase already fetched the images.
-3. **Run** — `docker compose run --name docker-compose-run-buildkite-plugin-<job id> --rm <service>` with the configured overrides, again adding `--pull never` when the images are already local. `rm: false` drops `--rm`, so the stopped container outlives the command.
-4. **Copy** — only with `copy-out`, which also drops `--rm`: `docker cp` copies each entry out of the stopped run container, then `docker rm --force --volumes` removes it unless `rm` is `false`.
+3. **Run** — `docker compose run --name docker-compose-run-buildkite-plugin-<job id> <service>` with the configured overrides, again adding `--pull never` when the images are already local. There is no `--rm`, so the stopped container outlives the command.
+4. **Copy** — only with `copy-out`: `docker cp` copies each entry out of the stopped run container.
 5. **Cleanup** — the `pre-exit` hook writes the project's logs to `docker-compose-run-buildkite-plugin.log`, uploads it as a Buildkite artifact, removes the run container with its anonymous volumes (`docker compose down` removes the container, but leaves those when no `file` is given), then runs `docker compose down --volumes --remove-orphans`. With `copy-out` it also removes any scratch directory a killed `command` hook left in the working directory.
 
 Each phase is its own log group, so you can fold and expand them independently and see exactly where time is spent.

@@ -125,7 +125,7 @@ run_hook_on_bash() {
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service"
-  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service"
+  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
 }
 
 @test "command hook emits the bare run argv on bash 4.2" {
@@ -137,25 +137,13 @@ run_hook_on_bash() {
 
   assert_success
   refute_output --partial "unbound variable"
-  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service"
-}
-
-@test "command hook keeps the run container on the oldest supported bash" {
-  skip_unless_docker
-
-  # `rm: false` empties RM_ARGS, which the default path never does.
-  run_hook_on_bash "$OLDEST_BASH" command "" "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=false"
-
-  assert_success
-  refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
 }
 
-@test "command hook copies out and removes the run container on the oldest supported bash" {
+@test "command hook copies out on the oldest supported bash" {
   skip_unless_docker
 
-  # `copy-out` empties RM_ARGS as `rm: false` does, and fills COPY_OUT, which
-  # every other test here leaves empty.
+  # `copy-out` fills COPY_OUT, which every other test here leaves empty.
   run_hook_on_bash "$OLDEST_BASH" command "; ls -d backend/coverage" \
     "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0=coverage:backend/coverage"
 
@@ -163,11 +151,11 @@ run_hook_on_bash() {
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
   assert_line --partial "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/.docker-compose-run-copy-out."
-  assert_line "DOCKER: rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id"
+  refute_line --partial "DOCKER: rm "
   assert_line "backend/coverage"
 }
 
-@test "command hook copies out and removes the run container on bash 4.2" {
+@test "command hook copies out on bash 4.2" {
   skip_unless_docker
 
   run_hook_on_bash "4.2" command "; ls -d backend/coverage" \
@@ -177,7 +165,7 @@ run_hook_on_bash() {
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
   assert_line --partial "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage /tmp/.docker-compose-run-copy-out."
-  assert_line "DOCKER: rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id"
+  refute_line --partial "DOCKER: rm "
   assert_line "backend/coverage"
 }
 

@@ -38,7 +38,7 @@ remove_job() {
 
 # A dependency for `up` to start, and a service that writes a report and fails,
 # the way a test run leaves coverage behind. /scratch is an anonymous volume,
-# which `run --rm` removes and `down --volumes` may not.
+# which `down --volumes` may not remove.
 write_report_compose_file() {
   cat > "$TEST_TMPDIR/docker-compose.yml" <<'EOF'
 services:
@@ -56,9 +56,8 @@ EOF
 }
 
 # A service that runs in a workspace member's directory and writes its report
-# relative to it, the way a monorepo image sets WORKDIR. It records which volume
-# is mounted at /scratch, since the container is gone by the time a test could
-# ask Docker.
+# relative to it, the way a monorepo image sets WORKDIR. /scratch is an anonymous
+# volume, as above.
 write_workspace_compose_file() {
   cat > "$TEST_TMPDIR/docker-compose.yml" <<'EOF'
 services:
@@ -76,17 +75,8 @@ services:
       sh -c 'mkdir -p coverage /out
       && echo "report $${REPORT:-}" > coverage/report.txt
       && echo "absolute" > /out/report.txt
-      && grep " /scratch " /proc/self/mountinfo > coverage/scratch-mount.txt
       && exit $${EXIT:-0}'
 EOF
-}
-
-# The project's one-off containers, by label rather than by name, so a run
-# container left behind under any name is listed.
-run_containers() {
-  docker ps --all --quiet \
-    --filter "label=com.docker.compose.project=docker-compose-run-buildkite-plugin-$1" \
-    --filter "label=com.docker.compose.oneoff=True"
 }
 
 wait_until_running() {
@@ -201,26 +191,7 @@ EOF
   [[ $status -eq 0 ]]
 }
 
-@test "integration: removes the run container when the command exits by default" {
-  skip_if_no_docker
-  write_report_compose_file
-
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
-
-  run bash "$PLUGIN_PATH/hooks/command"
-
-  [[ $status -eq 3 ]]
-  # By label rather than by name, so a run container left behind under any name
-  # fails the test.
-  run docker ps --all --quiet \
-    --filter "label=com.docker.compose.project=docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}" \
-    --filter "label=com.docker.compose.oneoff=True"
-  [[ $status -eq 0 ]]
-  [[ -z "$output" ]]
-}
-
-@test "integration: rm false keeps the stopped run container for post-command until pre-exit" {
+@test "integration: keeps the stopped run container for post-command, until pre-exit removes it and its anonymous volume" {
   skip_if_no_docker
   write_report_compose_file
 
@@ -228,7 +199,6 @@ EOF
   # the file with `-f`, `down --volumes` removes the anonymous volume itself, so
   # this test could not tell whether pre-exit's own removal ran.
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=false
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT_0="REPORT=kept"
   local container="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
 
@@ -257,7 +227,6 @@ EOF
 
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=false
   local job_a="${BUILDKITE_JOB_ID}-a" job_b="${BUILDKITE_JOB_ID}-b"
 
   # The shards of a parallel step are separate jobs, so each has its own job id.
@@ -293,25 +262,30 @@ EOF
   [[ $status -ne 0 ]]
 }
 
-@test "integration: copy-out resolves from against the service's working_dir, then removes the run container" {
+@test "integration: copy-out resolves from against the service's working_dir, and leaves the run container to pre-exit" {
   skip_if_no_docker
   write_workspace_compose_file
 
   # No `file`, so that `down --volumes` would leave the anonymous volume behind
-  # (see the rm false test above) and only the hook's own removal can clear it.
+  # (see the kept-container test above) and only pre-exit's removal can clear it.
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_ENVIRONMENT_0="REPORT=copied"
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:backend/coverage"
+  local container="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
 
   run bash "$PLUGIN_PATH/hooks/command"
 
   [[ $status -eq 0 ]]
   [[ "$(cat backend/coverage/report.txt)" == "report copied" ]]
 
-  [[ -z "$(run_containers "$BUILDKITE_JOB_ID")" ]]
   local volume
-  volume="$(grep -oE '[0-9a-f]{64}' backend/coverage/scratch-mount.txt)"
+  volume="$(docker container inspect --format '{{range .Mounts}}{{if eq .Destination "/scratch"}}{{.Name}}{{end}}{{end}}' "$container")"
   [[ -n "$volume" ]]
+
+  bash "$PLUGIN_PATH/hooks/pre-exit"
+
+  run docker container inspect "$container"
+  [[ $status -ne 0 ]]
   run docker volume inspect "$volume"
   [[ $status -ne 0 ]]
 }
@@ -334,7 +308,6 @@ EOF
   [[ "$(cat coverage/report.txt)" == "report failed" ]]
   [[ ! -e coverage/stale.txt ]]
   [[ ! -e coverage/coverage ]]
-  [[ -z "$(run_containers "$BUILDKITE_JOB_ID")" ]]
 }
 
 @test "integration: copy-out skips a from the command never wrote and copies the other entries" {
@@ -354,33 +327,11 @@ EOF
   [[ "$(cat reports/absolute.txt)" == "absolute" ]]
 }
 
-@test "integration: copy-out with rm false keeps the run container until pre-exit" {
+@test "integration: pre-exit removes the run container of a hook killed mid-command" {
   skip_if_no_docker
   write_workspace_compose_file
 
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE="$TEST_TMPDIR/docker-compose.yml"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=false
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
-  local container="docker-compose-run-buildkite-plugin-${BUILDKITE_JOB_ID}"
-
-  run bash "$PLUGIN_PATH/hooks/command"
-
-  [[ $status -eq 0 ]]
-  [[ -f coverage/report.txt ]]
-  docker container inspect "$container" >/dev/null
-
-  bash "$PLUGIN_PATH/hooks/pre-exit"
-
-  run docker container inspect "$container"
-  [[ $status -ne 0 ]]
-}
-
-@test "integration: copy-out leaves a killed hook's run container for pre-exit to remove" {
-  skip_if_no_docker
-  write_workspace_compose_file
-
-  # A cancelled job kills the hook before it reaches its own removal. The
+  # A cancelled job kills the hook while the command is still running. The
   # service's command is replaced with one that is still running when that
   # happens. No `file`, as above, so `down` alone would leave the volume.
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SERVICE="test"
@@ -443,8 +394,6 @@ EOF
 
   [[ "$(cat "$TEST_TMPDIR/a/coverage/report.txt")" == "report a" ]]
   [[ "$(cat "$TEST_TMPDIR/b/coverage/report.txt")" == "report b" ]]
-  [[ -z "$(run_containers "$job_a")" ]]
-  [[ -z "$(run_containers "$job_b")" ]]
 }
 
 @test "integration: copy-out leaves output in place when the checkout is mounted over the working directory" {

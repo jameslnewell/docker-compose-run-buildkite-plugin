@@ -18,10 +18,10 @@ containing spaces must be wrapped in escaped quotes so eval treats it as one tok
 
 ```bash
 # Wrong — eval splits "npm test" into two tokens, won't match the single arg
-"compose ... run --no-deps --rm service /bin/sh -e -c npm test : true"
+"compose ... run --no-deps service /bin/sh -e -c npm test : true"
 
 # Correct — eval sees "npm test" as one token
-"compose ... run --no-deps --rm service /bin/sh -e -c \"npm test\" : true"
+"compose ... run --no-deps service /bin/sh -e -c \"npm test\" : true"
 ```
 
 Because patterns are eval'd, an argument containing a newline can still be matched
@@ -31,7 +31,7 @@ exactly — write it as an ANSI-C quoted string with the `$` escaped so bash pas
 ```bash
 stub docker \
   "compose ... pull : true" \
-  "compose ... run --rm service /bin/sh -ec \$'cd terraform\nterraform init' : true" \
+  "compose ... run service /bin/sh -ec \$'cd terraform\nterraform init' : true" \
   ...
 ```
 
@@ -65,8 +65,8 @@ a flag).
 ## Array expansions are guarded — don't simplify them back
 
 Both hooks expand arrays that are legitimately empty (`FILE_ARGS` with no `file`,
-`RUN_ARGS` with none of workdir/entrypoint/environment/volumes, `RM_ARGS` with
-`rm: false` or `copy-out`, `COPY_OUT` without it, the `*_PRELOADED_ARGS` and `COMPOSE_PROGRESS_ARGS` pairs whenever
+`RUN_ARGS` with none of workdir/entrypoint/environment/volumes, `COPY_OUT`
+without `copy-out`, the `*_PRELOADED_ARGS` and `COMPOSE_PROGRESS_ARGS` pairs whenever
 Compose lacks the flag). Under `set -u`, bash only expands an empty array to nothing from 4.4
 onwards; before that it is an `unbound variable` error that kills the hook.
 

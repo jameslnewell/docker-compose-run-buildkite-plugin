@@ -125,15 +125,6 @@ docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$
 
 echo "+++ :docker: running"
 
-# `rm: false` keeps the stopped run container until pre-exit, so a post-command
-# hook can `docker cp` output out of it — the lifetime docker-run gives its own.
-# `copy-out` needs the stopped container too, so it also drops `--rm`; the hook
-# removes the container itself once the copy is done.
-RM_ARGS=()
-if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM:-true}" == "true" && ${#COPY_OUT[@]} -eq 0 ]]; then
-  RM_ARGS=(--rm)
-fi
-
 RUN_ARGS=()
 workdir="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_WORKDIR:-}"
 [[ -n "$workdir" ]] && RUN_ARGS+=(--workdir "$workdir")
@@ -254,12 +245,14 @@ fi
 
 # The status is kept rather than left to `set -e`, because a command that fails
 # has usually still written the output `copy-out` is there to collect.
+#
+# No `--rm`: `copy-out` and post-command hooks read from the stopped run
+# container, so it is kept until pre-exit removes it, as docker-run keeps its own.
 run_status=0
 set -x
 docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" run \
   "${RUN_PRELOADED_ARGS[@]+"${RUN_PRELOADED_ARGS[@]}"}" \
   --name "$CONTAINER" \
-  "${RM_ARGS[@]+"${RM_ARGS[@]}"}" \
   "${RUN_ARGS[@]+"${RUN_ARGS[@]}"}" \
   "$SERVICE" \
   "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || { run_status=$?; } 2>/dev/null
@@ -312,7 +305,7 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       # part-way would leave `to` half replaced.
       #
       # Nothing here is left to `set -e`: a step that fails has to fail with the
-      # command's status, after every entry and the removal have had their turn.
+      # command's status, after every entry has had its turn.
       copy_status=0
       scratch="$(mktemp -d "$(pwd)/${COPY_OUT_SCRATCH}.XXXXXX")" || copy_status=$?
       if [[ "$copy_status" -eq 0 ]]; then
@@ -382,13 +375,6 @@ if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
       fi
       echo "Copied ${from} to ${to}"
     done
-
-    # pre-exit removes the container if this doesn't, or never gets to run.
-    if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM:-true}" == "true" ]]; then
-      set -x
-      docker rm --force --volumes "$CONTAINER" || true
-      { set +x; } 2>/dev/null
-    fi
   else
     echo "^^^ +++"
     echo "Error: there is no run container to copy out of"

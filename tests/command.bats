@@ -109,7 +109,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service /bin/sh -e -c \"make test\" : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service /bin/sh -e -c \"make test\" : true"
 
   # The agent sources this hook, so set -x runs deep enough that the default
   # PS4='+ ' would trace as a run of '+' (e.g. '+++ docker ...') — which
@@ -139,7 +139,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service /bin/sh -e -c \"make test\" : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service /bin/sh -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -161,7 +161,7 @@ teardown() {
     "compose up --help : echo 'no such flag'" \
     "compose run --help : echo 'no such flag'" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service /bin/sh -e -c \"make test\" : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service /bin/sh -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -202,7 +202,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -264,7 +264,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service node server.js : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service node server.js : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -287,7 +287,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service /bin/sh -ec \$'cd terraform\nterraform init' : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service /bin/sh -ec \$'cd terraform\nterraform init' : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -307,7 +307,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service \"make test\" : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -330,7 +330,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service /bin/bash -e -c \"make test\" : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service /bin/bash -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -351,7 +351,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm --entrypoint /bin/sh test-service \"make test\" : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --entrypoint /bin/sh test-service \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -379,7 +379,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm --entrypoint \"\" test-service /bin/bash -e -c \"make test\" : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --entrypoint \"\" test-service /bin/bash -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -406,7 +406,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm --entrypoint /usr/bin/env test-service /bin/bash -e -c \"make test\" : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --entrypoint /usr/bin/env test-service /bin/bash -e -c \"make test\" : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -428,7 +428,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service /bin/sh -e -c \$'cd terraform\nterraform init' : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service /bin/sh -e -c \$'cd terraform\nterraform init' : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -447,7 +447,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service npx prisma : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service npx prisma : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -472,7 +472,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -509,7 +509,7 @@ teardown() {
     "compose run --help : printf '  --pull\n'" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id pull --include-deps test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
-    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id --rm -e AWS_REGION -e AWS_DEFAULT_REGION -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN test-service : true"
+    "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id -e AWS_REGION -e AWS_DEFAULT_REGION -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN test-service : true"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -583,22 +583,23 @@ teardown() {
     "compose up --help : echo 'no such flag'" \
     "compose run --help : echo 'no such flag'" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service : true"
+    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true"
 
   run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
 
   assert_success
-  assert_line "docker compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service"
+  assert_line "docker compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
 }
 
-@test "Keeps the named run container when rm is false" {
-  # A post-command hook finds the stopped container by this name to `docker cp`
-  # output out of it; pre-exit removes it. Without --rm, compose run still exits
+@test "Always names the run container and never passes --rm" {
+  # copy-out and post-command hooks read from the stopped container, which
+  # pre-exit removes by this name. `rm` is no longer an option, and a value left
+  # in a step's config changes nothing. Without --rm, compose run still exits
   # with the service's status.
   unset BUILDKITE_COMMAND
   unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
   unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=false
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=true
 
   stub docker \
     "compose --help : printf '  --progress plain\n'" \
@@ -609,28 +610,12 @@ teardown() {
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id up --detach --pull never --scale test-service=0 test-service : true" \
     "compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service : exit 3"
 
-  run "$PLUGIN_PATH/hooks/command"
+  run bash -c "${PLUGIN_PATH}/hooks/command 2>&1"
 
   assert_failure 3
-}
-
-@test "Removes the run container when rm is true" {
-  unset BUILDKITE_COMMAND
-  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND
-  unset BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COMMAND_0
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=true
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service : true"
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_success
+  assert_line "docker compose --progress=plain -p docker-compose-run-buildkite-plugin-test-job-id run --pull never --name docker-compose-run-buildkite-plugin-test-job-id test-service"
+  refute_output --partial -- "--rm"
+  unstub docker
 }
 
 # copy-out writes into the job's working directory, and the checkout these tests
@@ -640,10 +625,10 @@ enter_job_directory() {
   cd "$BATS_TEST_TMPDIR/job"
 }
 
-@test "copy-out runs without --rm, copies after the run and then removes the container" {
+@test "copy-out copies after the run, and leaves the container for pre-exit" {
   # A relative `from` is resolved against the run container's working directory;
   # `docker cp` alone would resolve it against /. The stubs are ordered, so the
-  # copy has to come after the run and the removal after the copy.
+  # copy has to come after the run, and nothing may follow it.
   unset BUILDKITE_COMMAND
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:backend/coverage"
   enter_job_directory
@@ -657,40 +642,13 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /workdir/backend" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
   assert_success
   assert_line -- "--- :docker: copying out"
   assert_equal "$(cat backend/coverage/report.txt)" "copied"
-  # The removal ends in `|| true`, so only unstub shows the plan was followed.
-  unstub docker
-}
-
-@test "copy-out with rm false leaves the container for pre-exit" {
-  unset BUILDKITE_COMMAND
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=false
-  enter_job_directory
-
-  stub docker \
-    "compose --help : echo ''" \
-    "compose pull --help : echo 'no such flag'" \
-    "compose up --help : echo 'no such flag'" \
-    "compose run --help : echo 'no such flag'" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
-    "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
-    "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
-
-  run "$PLUGIN_PATH/hooks/command"
-
-  assert_success
-  assert_equal "$(cat coverage/report.txt)" "copied"
-  refute_output --partial "docker rm"
   unstub docker
 }
 
@@ -708,8 +666,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : exit 3" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -732,8 +689,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo ''" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/coverage * : mkdir \"\$4\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/coverage * : mkdir \"\$4\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -755,8 +711,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/var/reports - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/var/reports * : mkdir \"\$4\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/var/reports * : mkdir \"\$4\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -778,8 +733,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -807,8 +761,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/junit.xml - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/junit.xml * : echo results > \"\$4\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/junit.xml * : echo results > \"\$4\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -836,8 +789,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -867,8 +819,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo copied > \"\$4/report.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -896,8 +847,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -925,8 +875,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/report.txt - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/report.txt * : echo report > \"\$4\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/out/report.txt * : echo report > \"\$4\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -958,8 +907,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -991,8 +939,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo covered > \"\$4/lcov.info\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1021,8 +968,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/node_modules - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/node_modules * : mkdir \"\$4\" && echo installed > \"\$4/package.json\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/node_modules * : mkdir \"\$4\" && echo installed > \"\$4/package.json\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1049,8 +995,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo 'Could not find the file' >&2; exit 1" \
-    "cp docker-compose-run-buildkite-plugin-test-job-id:/ - : echo tar" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp docker-compose-run-buildkite-plugin-test-job-id:/ - : echo tar"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1078,8 +1023,7 @@ enter_job_directory() {
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo 'No such container' >&2; exit 1" \
     "cp docker-compose-run-buildkite-plugin-test-job-id:/ - : echo 'No such container' >&2; exit 1" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : echo 'No such container' >&2; exit 1" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : echo 'No such container' >&2; exit 1"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1106,8 +1050,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo partial > \"\$4/report.txt\"; echo 'no space left on device' >&2; exit 1" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo partial > \"\$4/report.txt\"; echo 'no space left on device' >&2; exit 1"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1135,8 +1078,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : exit 3" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : echo \"write \$4/report.txt: no space left on device\" >&2; exit 1" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : echo \"write \$4/report.txt: no space left on device\" >&2; exit 1"
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1146,7 +1088,7 @@ enter_job_directory() {
 
 @test "copy-out keeps the command's exit status when it has nowhere to stage a copy" {
   # A job directory that can't be written to must not end the hook on the spot
-  # with mktemp's status: the container still has to be removed.
+  # with mktemp's status.
   unset BUILDKITE_COMMAND
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0="coverage:coverage"
   enter_job_directory
@@ -1162,8 +1104,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service : true" \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : exit 3" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar"
 
   run env PATH="$BATS_TEST_TMPDIR/shims:$PATH" "$PLUGIN_PATH/hooks/command"
 
@@ -1189,8 +1130,7 @@ enter_job_directory() {
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : echo \"write \$4/report.txt: no space left on device\" >&2; exit 1" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/docs - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/docs * : mkdir \"\$4\" && echo copied > \"\$4/index.html\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/docs * : mkdir \"\$4\" && echo copied > \"\$4/index.html\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1216,8 +1156,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo \"\$4\" > \"\$4/staged-at.txt\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/coverage * : mkdir \"\$4\" && echo \"\$4\" > \"\$4/staged-at.txt\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1242,8 +1181,7 @@ enter_job_directory() {
     "compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service : true" \
     "container inspect --format '{{.Config.WorkingDir}}' docker-compose-run-buildkite-plugin-test-job-id : echo /app" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/. - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/. * : mkdir -p \"\$4/\$(basename \"\$(dirname \"\$4\")\")/copy\" && echo built > \"\$4/app.js\"" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/. * : mkdir -p \"\$4/\$(basename \"\$(dirname \"\$4\")\")/copy\" && echo built > \"\$4/app.js\""
 
   run "$PLUGIN_PATH/hooks/command"
 
@@ -1274,8 +1212,7 @@ enter_job_directory() {
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/docs - : exit 1" \
     "cp docker-compose-run-buildkite-plugin-test-job-id:/ - : echo tar" \
     "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/dist - : echo tar" \
-    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/dist * : mkdir \"\$4\" && echo \"write \$4/bundle.js: no space left on device\" >&2; exit 1" \
-    "rm --force --volumes docker-compose-run-buildkite-plugin-test-job-id : true"
+    "cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/app/dist * : mkdir \"\$4\" && echo \"write \$4/bundle.js: no space left on device\" >&2; exit 1"
 
   run "$PLUGIN_PATH/hooks/command"
 
