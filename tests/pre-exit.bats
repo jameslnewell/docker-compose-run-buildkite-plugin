@@ -42,9 +42,9 @@ teardown() {
 }
 
 @test "Removes the run container and its anonymous volumes before downing the project" {
-  # Without `-f`, `down --volumes` removes a kept run container but not its
-  # anonymous volumes, which `run --rm` would have removed. The stubs are
-  # ordered, so the rm has to come before the down.
+  # Without `-f`, `down --volumes` removes the run container but not its
+  # anonymous volumes. The stubs are ordered, so the rm has to come before the
+  # down.
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id logs --timestamps : true" \
     "container inspect docker-compose-run-buildkite-plugin-test-job-id : true" \
@@ -63,7 +63,7 @@ teardown() {
 }
 
 @test "Still downs the project when there is no run container to remove" {
-  # With `rm: true` the container is already gone by pre-exit, so there is no
+  # A run that failed before creating its container left none, so there is no
   # rm in the plan.
   stub docker \
     "compose -p docker-compose-run-buildkite-plugin-test-job-id logs --timestamps : true" \
@@ -83,7 +83,7 @@ teardown() {
 }
 
 @test "Shows a failure to remove the run container and still downs the project" {
-  # A kept container that can't be removed leaves its anonymous volumes behind
+  # A container that can't be removed leaves its anonymous volumes behind
   # after the down, so the error has to reach the log. It must not fail the
   # job, whose outcome is already decided.
   stub docker \

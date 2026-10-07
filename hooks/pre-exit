@@ -33,10 +33,10 @@ buildkite-agent artifact upload docker-compose-run-buildkite-plugin.log || true
 
 echo "~~~ :docker: downing"
 set -x
-# `down` removes a run container kept by `rm: false`, but without `-f` it leaves
-# the container's anonymous volumes, which `run --rm` would have removed.
-# Already gone with `rm: true`, so check first rather than silence the rm: a
-# kept container that can't be removed has to show in the log.
+# `down` removes the run container too, but without `-f` it leaves the
+# container's anonymous volumes. A run that failed before creating its container
+# left none, so check first rather than silence the rm: a container that can't
+# be removed has to show in the log.
 if docker container inspect "$CONTAINER" >/dev/null 2>&1; then
   docker rm --force --volumes "$CONTAINER" || true
 fi

@@ -40,9 +40,18 @@ setup() {
 case "$*" in
   "compose --help"|"compose pull --help"|"compose up --help"|"compose run --help")
     exit 0 ;;
+  # copy-out reads the run container's working directory back from this.
+  "container inspect --format "*)
+    echo "/workdir/backend"
+    exit 0 ;;
 esac
 echo "DOCKER: $*"
 for a in "$@"; do echo "ARG=<$a>"; done
+# `cp <path> -` asks for a tar stream, which the output above stands in for.
+# Anything else is the copy, which docker only makes into a directory that exists.
+if [ "$1 $2" = "cp --follow-link" ] && [ "$4" != "-" ]; then
+  mkdir "$4"
+fi
 STUB
 
   cat > "${STUB_DIR}/buildkite-agent" <<'STUB'
@@ -116,7 +125,7 @@ run_hook_on_bash() {
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id up --detach --scale test-service=0 test-service"
-  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service"
+  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
 }
 
 @test "command hook emits the bare run argv on bash 4.2" {
@@ -128,18 +137,36 @@ run_hook_on_bash() {
 
   assert_success
   refute_output --partial "unbound variable"
-  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id --rm test-service"
+  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
 }
 
-@test "command hook keeps the run container on the oldest supported bash" {
+@test "command hook copies out on the oldest supported bash" {
   skip_unless_docker
 
-  # `rm: false` empties RM_ARGS, which the default path never does.
-  run_hook_on_bash "$OLDEST_BASH" command "" "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM=false"
+  # `copy-out` fills COPY_OUT, which every other test here leaves empty.
+  run_hook_on_bash "$OLDEST_BASH" command "; ls -d backend/coverage" \
+    "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0=coverage:backend/coverage"
 
   assert_success
   refute_output --partial "unbound variable"
   assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
+  assert_line "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage/. backend/coverage"
+  refute_line --partial "DOCKER: rm "
+  assert_line "backend/coverage"
+}
+
+@test "command hook copies out on bash 4.2" {
+  skip_unless_docker
+
+  run_hook_on_bash "4.2" command "; ls -d backend/coverage" \
+    "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT_0=coverage:backend/coverage"
+
+  assert_success
+  refute_output --partial "unbound variable"
+  assert_line "DOCKER: compose -p docker-compose-run-buildkite-plugin-test-job-id run --name docker-compose-run-buildkite-plugin-test-job-id test-service"
+  assert_line "DOCKER: cp --follow-link docker-compose-run-buildkite-plugin-test-job-id:/workdir/backend/coverage/. backend/coverage"
+  refute_line --partial "DOCKER: rm "
+  assert_line "backend/coverage"
 }
 
 @test "pre-exit hook does not poison the uploaded log on the oldest supported bash" {

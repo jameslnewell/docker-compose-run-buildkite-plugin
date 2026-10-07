@@ -41,6 +41,19 @@ if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE"; then
   done
 fi
 
+# Checked before anything is pulled or started, so a malformed entry fails in
+# seconds rather than after the command has run.
+COPY_OUT=()
+if plugin_read_list_into_result "BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT"; then
+  for entry in "${result[@]+"${result[@]}"}"; do
+    if [[ "$entry" != *:* || "$entry" == *:*:* || "$entry" == :* || "$entry" == *: ]]; then
+      echo "+++ Error: Each copy-out entry must be \"<from>:<to>\", a path in the container and a path in the job's working directory. Got \"${entry}\"."
+      exit 1
+    fi
+    COPY_OUT+=("$entry")
+  done
+fi
+
 COMPOSE_PROGRESS_ARGS=()
 if docker compose --help 2>&1 | grep -qE '^\s+--progress(\s|$)'; then
   COMPOSE_PROGRESS_ARGS=(--progress=plain)
@@ -95,13 +108,6 @@ docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$
 { set +x; } 2>/dev/null
 
 echo "+++ :docker: running"
-
-# `rm: false` keeps the stopped run container until pre-exit, so a post-command
-# hook can `docker cp` output out of it — the lifetime docker-run gives its own.
-RM_ARGS=()
-if [[ "${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM:-true}" == "true" ]]; then
-  RM_ARGS=(--rm)
-fi
 
 RUN_ARGS=()
 workdir="${BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_WORKDIR:-}"
@@ -221,12 +227,87 @@ elif [[ "$has_plugin_commands" == "true" ]]; then
   CMD_ARGS+=("${CMD_ITEMS[@]+"${CMD_ITEMS[@]}"}")
 fi
 
+# The status is kept rather than left to `set -e`, because a command that fails
+# has usually still written the output `copy-out` is there to collect.
+#
+# No `--rm`: `copy-out` and post-command hooks read from the stopped run
+# container, so it is kept until pre-exit removes it, as docker-run keeps its own.
+run_status=0
 set -x
 docker compose "${COMPOSE_PROGRESS_ARGS[@]+"${COMPOSE_PROGRESS_ARGS[@]}"}" -p "$PROJECT" "${FILE_ARGS[@]+"${FILE_ARGS[@]}"}" run \
   "${RUN_PRELOADED_ARGS[@]+"${RUN_PRELOADED_ARGS[@]}"}" \
   --name "$CONTAINER" \
-  "${RM_ARGS[@]+"${RM_ARGS[@]}"}" \
   "${RUN_ARGS[@]+"${RUN_ARGS[@]}"}" \
   "$SERVICE" \
-  "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}"
+  "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || { run_status=$?; } 2>/dev/null
 { set +x; } 2>/dev/null
+
+# The copy happens here rather than in a post-command hook so that every
+# post-command hook sees the output: the agent runs those in reverse plugin order
+# from v4, which would put this plugin's after an artifact upload listed below it.
+copy_failed=false
+if [[ ${#COPY_OUT[@]} -gt 0 ]]; then
+  echo "--- :docker: copying out"
+  # A run that failed before creating its container left nothing to copy.
+  if container_workdir="$(docker container inspect --format '{{.Config.WorkingDir}}' "$CONTAINER")"; then
+    for entry in "${COPY_OUT[@]+"${COPY_OUT[@]}"}"; do
+      # `docker cp` resolves a relative container path against /, not against the
+      # directory the command ran in.
+      from="${entry%%:*}"
+      [[ "$from" == /* ]] || from="${container_workdir%/}/${from#./}"
+      # Handed to `docker cp` as written, which resolves a relative path against
+      # this hook's working directory: the job's.
+      to="${entry#*:}"
+
+      # `docker cp` puts a directory inside a `to` that already exists. Its
+      # contents are asked for instead (`/.`), which only a directory has.
+      # `docker cp` can't be asked what a path is, or whether it is there, and
+      # how it words a missing one varies between Docker versions. Asking for
+      # the path as a tar stream answers both: a byte only arrives when the path
+      # is there. None arrives when the container has gone or its filesystem
+      # can't be read either, so the path is only called missing if / does
+      # answer; otherwise the copy below fails with docker's own error.
+      #
+      # `--follow-link` here and on the copy: without it a `from` that is a
+      # symlink is copied as the link, which points nowhere useful on the agent.
+      source="$from"
+      if [[ -n "$(docker cp --follow-link "${CONTAINER}:${from%/}/." - 2>/dev/null | head -c 1)" ]]; then
+        source="${from%/}/."
+      elif [[ -z "$(docker cp --follow-link "${CONTAINER}:${from}" - 2>/dev/null | head -c 1)" \
+        && -n "$(docker cp "${CONTAINER}:/" - 2>/dev/null | head -c 1)" ]]; then
+        echo "Skipped ${from}: not found in the run container"
+        continue
+      fi
+
+      # Nothing here is left to `set -e`: a step that fails has to fail with the
+      # command's status, after every entry has had its turn. `docker cp` creates
+      # `to` but not the directory it is in.
+      copy_status=0
+      mkdir -p "$(dirname "$to")" || copy_status=$?
+      if [[ "$copy_status" -eq 0 ]]; then
+        set -x
+        docker cp --follow-link "${CONTAINER}:${source}" "$to" || { copy_status=$?; } 2>/dev/null
+        { set +x; } 2>/dev/null
+      fi
+
+      if [[ "$copy_status" -ne 0 ]]; then
+        echo "^^^ +++"
+        echo "Error: could not copy ${from} out of the run container to ${to}"
+        copy_failed=true
+        continue
+      fi
+      echo "Copied ${from} to ${to}"
+    done
+  else
+    echo "^^^ +++"
+    echo "Error: there is no run container to copy out of"
+    copy_failed=true
+  fi
+fi
+
+if [[ "$run_status" -ne 0 ]]; then
+  exit "$run_status"
+fi
+if [[ "$copy_failed" == "true" ]]; then
+  exit 1
+fi

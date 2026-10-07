@@ -23,9 +23,11 @@ Options not defined in the Compose spec follow either the Docker CLI's naming or
 | `file` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_FILE` | Compose file(s), matching `docker compose -f` |
 | `workdir` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_WORKDIR` | Working directory in the container |
 | `shell` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_SHELL` | Shell used to wrap the step's command |
-| `rm` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_RM` | Remove the run container when the command exits (`--rm`) |
+| `copy-out` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_COPY_OUT` | Copy paths out of the run container when the command exits, as `<from>:<to>`. A directory's contents go into `to`, an existing `to` is merged into, and a missing `from` is skipped |
 | `propagate-aws` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_AWS` | Propagate AWS credential and region env vars |
 | `propagate-buildkite-environment` | `BUILDKITE_PLUGIN_DOCKER_COMPOSE_RUN_PROPAGATE_BUILDKITE_ENVIRONMENT` | Propagate `CI`, `BUILDKITE` and `BUILDKITE_*` |
+
+`copy-out` has no counterpart in either. `docker cp` copies in both directions, so the option is named for the one it does, and its `<from>:<to>` entries put the source first as `volumes` does.
 
 Array options are read with `plugin_read_list_into_result` in [`lib/shared.bash`](./lib/shared.bash), which reads the `_0`, `_1`, … indexed variables the agent exports for YAML arrays, falls back to the unindexed variable for scalars, and returns non-zero when the option is unset. It appends into the global `result` array — like the official [`docker`](https://github.com/buildkite-plugins/docker-buildkite-plugin) plugin's helper of the same name — rather than printing values for `mapfile` to re-read, because an item may itself contain newlines (a whole shell script passed as one `command:` entry) and a newline-delimited round-trip would split it into one argv entry per line.
 
